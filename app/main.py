@@ -3,14 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.db.session import check_database_connection
+from app.db.init_db import init_db
+from app.api.v1.router import api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Al iniciar la app
+
     check_database_connection()
+    init_db()
+
     yield
-    # Al apagar la app (cleanup si se necesita)
+    
 
 
 app = FastAPI(
@@ -28,7 +32,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(api_router)
+
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+    return {
+        "status": "ok",
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION
+    }

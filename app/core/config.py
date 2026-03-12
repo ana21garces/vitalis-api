@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     # CORS
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
+    # CORS
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
     class Config:
         env_file = ".env"
