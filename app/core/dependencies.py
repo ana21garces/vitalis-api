@@ -30,4 +30,17 @@ def get_current_user(
         )
 
     user_id = payload.get("sub")
-    user = U
+    if not user_id:
+        raise credentials_exception
+
+    try:
+        import uuid
+        uid = uuid.UUID(user_id)
+    except (ValueError, AttributeError):
+        raise credentials_exception
+
+    user = UserRepository(db).get_by_id(uid)
+    if user is None:
+        raise credentials_exception
+
+    return user
