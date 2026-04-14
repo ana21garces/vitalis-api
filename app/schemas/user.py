@@ -10,7 +10,7 @@ class UserResponse(BaseModel):
     full_name: str
     university: str | None
     program: str | None
-    semester: int | None
+    
     role: UserRole
     is_active: bool
     is_verified: bool

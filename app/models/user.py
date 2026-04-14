@@ -22,7 +22,6 @@ class User(Base):
     full_name = Column(String(100), nullable=False)
     university = Column(String(150), nullable=True)
     program = Column(String(150), nullable=True)
-    semester = Column(Integer, nullable=True)
     role = Column(SAEnum(UserRole), default=UserRole.STUDENT, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
