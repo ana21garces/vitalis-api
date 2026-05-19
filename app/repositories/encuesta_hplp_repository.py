@@ -1,6 +1,7 @@
 import uuid
 from sqlalchemy.orm import Session
 from app.models.encuesta_hplp import EncuestaHplp
+from app.models.user import User
 from app.schemas.encuesta_hplp import EncuestaCreate
 
 
@@ -102,3 +103,26 @@ def eliminar(db: Session, encuesta_id: int) -> bool:
     db.delete(encuesta)
     db.commit()
     return True
+
+
+def obtener_resultados_pp_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
+    """Retorna la encuesta más reciente de cada usuario junto con sus datos de perfil."""
+    from sqlalchemy import func
+
+    # Subconsulta: id de la encuesta más reciente por usuario
+    subq = (
+        db.query(
+            EncuestaHplp.usuario_id,
+            func.max(EncuestaHplp.id).label("ultimo_id"),
+        )
+        .group_by(EncuestaHplp.usuario_id)
+        .subquery()
+    )
+
+    return (
+        db.query(EncuestaHplp, User)
+        .join(subq, EncuestaHplp.id == subq.c.ultimo_id)
+        .join(User, User.id == EncuestaHplp.usuario_id)
+        .order_by(User.program, User.full_name)
+        .all()
+    )

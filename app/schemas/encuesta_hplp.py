@@ -117,3 +117,40 @@ class EstadoEncuesta(BaseModel):
 
 class ResetearResponse(BaseModel):
     message: str
+
+
+# ── Vista Capellán: Psicología Positiva ──────────────────────────────────────
+
+class PsicologiaPositivaItems(BaseModel):
+    pp_item_06: int
+    pp_item_12: int
+    pp_item_19: int
+    pp_item_25: int
+    pp_item_31: int
+    pp_item_37: int
+    pp_item_44: int
+    pp_item_49: int
+    pp_item_52: int
+    pp_indice: float
+    pp_nivel: str
+
+
+class ResultadoCapellanItem(BaseModel):
+    encuesta_id: int
+    usuario_id: str
+    nombre: str
+    programa: str | None
+    universidad: str | None
+    fecha: datetime
+    psicologia_positiva: PsicologiaPositivaItems
+
+
+class ProgramaGroup(BaseModel):
+    programa: str | None
+    total: int
+    estudiantes: List[ResultadoCapellanItem]
+
+
+class ResultadosCapellanResponse(BaseModel):
+    total_estudiantes: int
+    grupos: List[ProgramaGroup]
