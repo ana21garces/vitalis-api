@@ -16,7 +16,10 @@ from app.schemas.encuesta_hplp import (
     ResultadoCapellanItem,
     ProgramaGroup,
     ResultadosCapellanResponse,
+    RecomendacionesPPResponse,
+    TarjetaRecomendacion,
 )
+from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
 from app.repositories import encuesta_hplp_repository as repo
@@ -219,6 +222,34 @@ def resultados_psicologia_positiva(
     return ResultadosCapellanResponse(
         total_estudiantes=len(filas),
         grupos=grupos_list,
+    )
+
+
+@router.get("/recomendaciones/psicologia-positiva", response_model=RecomendacionesPPResponse)
+def recomendaciones_psicologia_positiva(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Genera un plan personalizado de Psicología Positiva para el usuario autenticado
+    usando IA (Claude). Requiere haber completado la encuesta.
+    """
+    ultimo = repo.obtener_ultimo(db, current_user.id)
+    if not ultimo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El usuario aún no ha completado la encuesta",
+        )
+
+    tarjetas = obtener_recomendaciones_pp(ultimo)
+
+    return RecomendacionesPPResponse(
+        usuario_id=str(current_user.id),
+        nombre=current_user.full_name,
+        pp_nivel=ultimo.pp_nivel,
+        pp_indice=ultimo.pp_indice,
+        total_tarjetas=len(tarjetas),
+        tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
     )
 
 
