@@ -12,6 +12,10 @@ from app.schemas.encuesta_hplp import (
     DimensionResultado,
     EstadoEncuesta,
     ResetearResponse,
+    PsicologiaPositivaItems,
+    ResultadoCapellanItem,
+    ProgramaGroup,
+    ResultadosCapellanResponse,
 )
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
@@ -162,6 +166,60 @@ def resetear_encuesta(
             detail=f"No se encontró la encuesta con id {encuesta_id}",
         )
     return ResetearResponse(message=f"Encuesta {encuesta_id} eliminada. El usuario puede volver a completarla.")
+
+
+@router.get("/capellan/psicologia-positiva", response_model=ResultadosCapellanResponse)
+def resultados_psicologia_positiva(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el capellán.
+    Devuelve los resultados de Psicología Positiva (ítems 6,12,19,25,31,37,44,49,52)
+    de todos los estudiantes que completaron la encuesta, agrupados por programa/facultad.
+    """
+    if current_user.role != UserRole.CAPELLAN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el capellán puede acceder a esta vista",
+        )
+
+    filas = repo.obtener_resultados_pp_todos(db)
+
+    grupos: dict[str | None, list[ResultadoCapellanItem]] = {}
+    for encuesta, usuario in filas:
+        item = ResultadoCapellanItem(
+            encuesta_id=encuesta.id,
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            programa=usuario.program,
+            universidad=usuario.university,
+            fecha=encuesta.fecha_respuesta,
+            psicologia_positiva=PsicologiaPositivaItems(
+                pp_item_06=encuesta.pp_item_06,
+                pp_item_12=encuesta.pp_item_12,
+                pp_item_19=encuesta.pp_item_19,
+                pp_item_25=encuesta.pp_item_25,
+                pp_item_31=encuesta.pp_item_31,
+                pp_item_37=encuesta.pp_item_37,
+                pp_item_44=encuesta.pp_item_44,
+                pp_item_49=encuesta.pp_item_49,
+                pp_item_52=encuesta.pp_item_52,
+                pp_indice=encuesta.pp_indice,
+                pp_nivel=encuesta.pp_nivel,
+            ),
+        )
+        grupos.setdefault(usuario.program, []).append(item)
+
+    grupos_list = [
+        ProgramaGroup(programa=prog, total=len(estudiantes), estudiantes=estudiantes)
+        for prog, estudiantes in grupos.items()
+    ]
+
+    return ResultadosCapellanResponse(
+        total_estudiantes=len(filas),
+        grupos=grupos_list,
+    )
 
 
 @router.get("/historial", response_model=EncuestaHistorialResponse)
