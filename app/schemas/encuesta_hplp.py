@@ -154,3 +154,22 @@ class ProgramaGroup(BaseModel):
 class ResultadosCapellanResponse(BaseModel):
     total_estudiantes: int
     grupos: List[ProgramaGroup]
+
+
+class TarjetaRecomendacion(BaseModel):
+    pregunta_num: int
+    pregunta_texto: str
+    nivel: str
+    puntaje: int
+    tecnica: str
+    objetivo: str
+    instrucciones: List[str]
+
+
+class RecomendacionesPPResponse(BaseModel):
+    usuario_id: str
+    nombre: str | None
+    pp_nivel: str
+    pp_indice: float
+    total_tarjetas: int
+    tarjetas: List[TarjetaRecomendacion]
