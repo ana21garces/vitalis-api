@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Enum as SAEnum, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
 from sqlalchemy.orm import relationship
@@ -23,7 +23,10 @@ class User(Base):
     full_name = Column(String(100), nullable=False)
     university = Column(String(150), nullable=True)
     program = Column(String(150), nullable=True)
-    role = Column(SAEnum(UserRole), default=UserRole.STUDENT, nullable=False)
+    # Usamos String para evitar problemas de caché con SAEnum en PostgreSQL.
+    # UserRole hereda de str, por lo que las comparaciones (==, !=) funcionan
+    # igual que con el tipo Enum nativo.
+    role = Column(String(50), default=UserRole.STUDENT.value, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
     total_xp = Column(Integer, default=0, nullable=False)
