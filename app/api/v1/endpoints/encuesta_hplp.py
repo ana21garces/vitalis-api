@@ -231,8 +231,9 @@ def recomendaciones_psicologia_positiva(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Genera un plan personalizado de Psicología Positiva para el usuario autenticado
-    usando IA (Claude). Requiere haber completado la encuesta.
+    Devuelve el plan de recomendaciones de Psicología Positiva para el usuario autenticado.
+    Las recomendaciones son las elaboradas por el profesional, seleccionadas según
+    el puntaje de cada ítem PP. Requiere haber completado la encuesta.
     """
     ultimo = repo.obtener_ultimo(db, current_user.id)
     if not ultimo:
