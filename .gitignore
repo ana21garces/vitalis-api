@@ -27,6 +27,10 @@ migrations/versions/*.py
 .pytest_cache/
 .coverage
 htmlcov/
+test.db
+
+# Scripts temporales
+crear_capellan.py
 
 # OS
 .DS_Store
