@@ -219,3 +219,47 @@ class RecomendacionesAFResponse(BaseModel):
     af_indice: float
     total_tarjetas: int
     tarjetas: List[TarjetaRecomendacion]
+
+
+# ── Vista Responsabilidad en Salud ────────────────────────────────────────────
+
+class ResponsabilidadSaludItems(BaseModel):
+    rs_item_03: int
+    rs_item_09: int
+    rs_item_15: int
+    rs_item_22: int
+    rs_item_28: int
+    rs_item_34: int
+    rs_item_41: int
+    rs_indice: float
+    rs_nivel: str
+
+
+class ResultadoRespSaludItem(BaseModel):
+    encuesta_id: int
+    usuario_id: str
+    nombre: str
+    programa: str | None
+    universidad: str | None
+    fecha: datetime
+    responsabilidad_salud: ResponsabilidadSaludItems
+
+
+class ProgramaGroupRS(BaseModel):
+    programa: str | None
+    total: int
+    estudiantes: List[ResultadoRespSaludItem]
+
+
+class ResultadosRespSaludResponse(BaseModel):
+    total_estudiantes: int
+    grupos: List[ProgramaGroupRS]
+
+
+class RecomendacionesRSResponse(BaseModel):
+    usuario_id: str
+    nombre: str | None
+    rs_nivel: str
+    rs_indice: float
+    total_tarjetas: int
+    tarjetas: List[TarjetaRecomendacion]
