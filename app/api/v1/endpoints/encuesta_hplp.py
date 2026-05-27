@@ -23,9 +23,15 @@ from app.schemas.encuesta_hplp import (
     ProgramaGroupAF,
     ResultadosActFisicaResponse,
     RecomendacionesAFResponse,
+    ResponsabilidadSaludItems,
+    ResultadoRespSaludItem,
+    ProgramaGroupRS,
+    ResultadosRespSaludResponse,
+    RecomendacionesRSResponse,
 )
 from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
 from app.services.recomendaciones_af_service import obtener_recomendaciones_af
+from app.services.recomendaciones_rs_service import obtener_recomendaciones_rs
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
 from app.repositories import encuesta_hplp_repository as repo
@@ -338,6 +344,87 @@ def recomendaciones_actividad_fisica(
         nombre=current_user.full_name,
         af_nivel=ultimo.af_nivel,
         af_indice=ultimo.af_indice,
+        total_tarjetas=len(tarjetas),
+        tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
+    )
+
+
+@router.get("/responsabilidad-salud/resultados", response_model=ResultadosRespSaludResponse)
+def resultados_responsabilidad_salud(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el rol de Responsabilidad en Salud.
+    Devuelve los resultados (ítems 3,9,15,22,28,34,41) de todos los estudiantes
+    que completaron la encuesta, agrupados por programa/facultad.
+    """
+    if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
+        )
+
+    filas = repo.obtener_resultados_rs_todos(db)
+
+    grupos: dict[str | None, list[ResultadoRespSaludItem]] = {}
+    for encuesta, usuario in filas:
+        item = ResultadoRespSaludItem(
+            encuesta_id=encuesta.id,
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            programa=usuario.program,
+            universidad=usuario.university,
+            fecha=encuesta.fecha_respuesta,
+            responsabilidad_salud=ResponsabilidadSaludItems(
+                rs_item_03=encuesta.rs_item_03,
+                rs_item_09=encuesta.rs_item_09,
+                rs_item_15=encuesta.rs_item_15,
+                rs_item_22=encuesta.rs_item_22,
+                rs_item_28=encuesta.rs_item_28,
+                rs_item_34=encuesta.rs_item_34,
+                rs_item_41=encuesta.rs_item_41,
+                rs_indice=encuesta.rs_indice,
+                rs_nivel=encuesta.rs_nivel,
+            ),
+        )
+        grupos.setdefault(usuario.program, []).append(item)
+
+    grupos_list = [
+        ProgramaGroupRS(programa=prog, total=len(estudiantes), estudiantes=estudiantes)
+        for prog, estudiantes in grupos.items()
+    ]
+
+    return ResultadosRespSaludResponse(
+        total_estudiantes=len(filas),
+        grupos=grupos_list,
+    )
+
+
+@router.get("/recomendaciones/responsabilidad-salud", response_model=RecomendacionesRSResponse)
+def recomendaciones_responsabilidad_salud(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Devuelve el plan de recomendaciones de Responsabilidad en Salud para el usuario autenticado.
+    Solo genera tarjetas para niveles POBRE y MODERADO (el profesional así lo indicó).
+    Requiere haber completado la encuesta.
+    """
+    ultimo = repo.obtener_ultimo(db, current_user.id)
+    if not ultimo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El usuario aún no ha completado la encuesta",
+        )
+
+    tarjetas = obtener_recomendaciones_rs(ultimo)
+
+    return RecomendacionesRSResponse(
+        usuario_id=str(current_user.id),
+        nombre=current_user.full_name,
+        rs_nivel=ultimo.rs_nivel,
+        rs_indice=ultimo.rs_indice,
         total_tarjetas=len(tarjetas),
         tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
     )

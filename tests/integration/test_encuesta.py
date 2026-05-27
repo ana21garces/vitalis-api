@@ -202,3 +202,82 @@ def test_af_recomendaciones_ok(client, auth_headers):
 def test_af_recomendaciones_sin_auth(client):
     res = client.get(AF_REC_URL)
     assert res.status_code == 401
+
+
+# ── Tests Responsabilidad en Salud ───────────────────────────────────────────
+
+RS_URL = f"{ENCUESTA_URL}/responsabilidad-salud/resultados"
+RS_REC_URL = f"{ENCUESTA_URL}/recomendaciones/responsabilidad-salud"
+
+
+def test_rs_sin_auth(client):
+    res = client.get(RS_URL)
+    assert res.status_code == 401
+
+
+def test_rs_acceso_denegado_sin_rol(client, auth_headers):
+    res = client.get(RS_URL, headers=auth_headers)
+    assert res.status_code == 403
+
+
+def test_rs_estructura_respuesta(client, resp_salud_headers):
+    res = client.get(RS_URL, headers=resp_salud_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "total_estudiantes" in data
+    assert "grupos" in data
+    assert isinstance(data["grupos"], list)
+
+
+def test_rs_con_encuestas(client, auth_headers, resp_salud_headers):
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    res = client.get(RS_URL, headers=resp_salud_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_estudiantes"] >= 1
+    grupo = data["grupos"][0]
+    assert "programa" in grupo
+    assert "total" in grupo
+    assert "estudiantes" in grupo
+    rs = grupo["estudiantes"][0]["responsabilidad_salud"]
+    for campo in [
+        "rs_item_03", "rs_item_09", "rs_item_15", "rs_item_22",
+        "rs_item_28", "rs_item_34", "rs_item_41",
+        "rs_indice", "rs_nivel",
+    ]:
+        assert campo in rs
+
+
+def test_rs_recomendaciones_sin_encuesta(client, auth_headers):
+    res = client.get(RS_REC_URL, headers=auth_headers)
+    assert res.status_code == 404
+
+
+def test_rs_recomendaciones_ok(client, auth_headers):
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    res = client.get(RS_REC_URL, headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "rs_nivel" in data
+    assert "rs_indice" in data
+    assert "total_tarjetas" in data
+    assert "tarjetas" in data
+    assert isinstance(data["tarjetas"], list)
+    if data["tarjetas"]:
+        t = data["tarjetas"][0]
+        for campo in ["pregunta_num", "pregunta_texto", "nivel", "puntaje", "tecnica", "objetivo", "instrucciones"]:
+            assert campo in t
+
+
+def test_rs_recomendaciones_solo_pobre_moderado(client, auth_headers):
+    """Preguntas con puntaje BUENO (3) o EXCELENTE (4) no deben generar tarjeta."""
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    res = client.get(RS_REC_URL, headers=auth_headers)
+    data = res.json()
+    for t in data["tarjetas"]:
+        assert t["nivel"] in ("POBRE", "MODERADO"), f"Nivel inesperado: {t['nivel']}"
+
+
+def test_rs_recomendaciones_sin_auth(client):
+    res = client.get(RS_REC_URL)
+    assert res.status_code == 401
