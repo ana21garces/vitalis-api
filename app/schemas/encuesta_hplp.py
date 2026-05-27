@@ -173,3 +173,49 @@ class RecomendacionesPPResponse(BaseModel):
     pp_indice: float
     total_tarjetas: int
     tarjetas: List[TarjetaRecomendacion]
+
+
+# ── Vista Actividad Física ────────────────────────────────────────────────────
+
+class ActividadFisicaItems(BaseModel):
+    af_item_04: int
+    af_item_10: int
+    af_item_16: int
+    af_item_17: int
+    af_item_23: int
+    af_item_29: int
+    af_item_35: int
+    af_item_42: int
+    af_item_47: int
+    af_indice: float
+    af_nivel: str
+
+
+class ResultadoActFisicaItem(BaseModel):
+    encuesta_id: int
+    usuario_id: str
+    nombre: str
+    programa: str | None
+    universidad: str | None
+    fecha: datetime
+    actividad_fisica: ActividadFisicaItems
+
+
+class ProgramaGroupAF(BaseModel):
+    programa: str | None
+    total: int
+    estudiantes: List[ResultadoActFisicaItem]
+
+
+class ResultadosActFisicaResponse(BaseModel):
+    total_estudiantes: int
+    grupos: List[ProgramaGroupAF]
+
+
+class RecomendacionesAFResponse(BaseModel):
+    usuario_id: str
+    nombre: str | None
+    af_nivel: str
+    af_indice: float
+    total_tarjetas: int
+    tarjetas: List[TarjetaRecomendacion]

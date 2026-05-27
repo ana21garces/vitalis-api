@@ -18,8 +18,14 @@ from app.schemas.encuesta_hplp import (
     ResultadosCapellanResponse,
     RecomendacionesPPResponse,
     TarjetaRecomendacion,
+    ActividadFisicaItems,
+    ResultadoActFisicaItem,
+    ProgramaGroupAF,
+    ResultadosActFisicaResponse,
+    RecomendacionesAFResponse,
 )
 from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
+from app.services.recomendaciones_af_service import obtener_recomendaciones_af
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
 from app.repositories import encuesta_hplp_repository as repo
@@ -249,6 +255,89 @@ def recomendaciones_psicologia_positiva(
         nombre=current_user.full_name,
         pp_nivel=ultimo.pp_nivel,
         pp_indice=ultimo.pp_indice,
+        total_tarjetas=len(tarjetas),
+        tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
+    )
+
+
+@router.get("/actividad-fisica/resultados", response_model=ResultadosActFisicaResponse)
+def resultados_actividad_fisica(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el rol de Actividad Física.
+    Devuelve los resultados de Actividad Física (ítems 4,10,16,17,23,29,35,42,47)
+    de todos los estudiantes que completaron la encuesta, agrupados por programa/facultad.
+    """
+    if current_user.role != UserRole.ACTIVIDAD_FISICA:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Actividad Física puede acceder a esta vista",
+        )
+
+    filas = repo.obtener_resultados_af_todos(db)
+
+    grupos: dict[str | None, list[ResultadoActFisicaItem]] = {}
+    for encuesta, usuario in filas:
+        item = ResultadoActFisicaItem(
+            encuesta_id=encuesta.id,
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            programa=usuario.program,
+            universidad=usuario.university,
+            fecha=encuesta.fecha_respuesta,
+            actividad_fisica=ActividadFisicaItems(
+                af_item_04=encuesta.af_item_04,
+                af_item_10=encuesta.af_item_10,
+                af_item_16=encuesta.af_item_16,
+                af_item_17=encuesta.af_item_17,
+                af_item_23=encuesta.af_item_23,
+                af_item_29=encuesta.af_item_29,
+                af_item_35=encuesta.af_item_35,
+                af_item_42=encuesta.af_item_42,
+                af_item_47=encuesta.af_item_47,
+                af_indice=encuesta.af_indice,
+                af_nivel=encuesta.af_nivel,
+            ),
+        )
+        grupos.setdefault(usuario.program, []).append(item)
+
+    grupos_list = [
+        ProgramaGroupAF(programa=prog, total=len(estudiantes), estudiantes=estudiantes)
+        for prog, estudiantes in grupos.items()
+    ]
+
+    return ResultadosActFisicaResponse(
+        total_estudiantes=len(filas),
+        grupos=grupos_list,
+    )
+
+
+@router.get("/recomendaciones/actividad-fisica", response_model=RecomendacionesAFResponse)
+def recomendaciones_actividad_fisica(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Devuelve el plan de recomendaciones de Actividad Física para el usuario autenticado.
+    Las recomendaciones son las elaboradas por el profesional, seleccionadas según
+    el puntaje de cada ítem AF. Requiere haber completado la encuesta.
+    """
+    ultimo = repo.obtener_ultimo(db, current_user.id)
+    if not ultimo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El usuario aún no ha completado la encuesta",
+        )
+
+    tarjetas = obtener_recomendaciones_af(ultimo)
+
+    return RecomendacionesAFResponse(
+        usuario_id=str(current_user.id),
+        nombre=current_user.full_name,
+        af_nivel=ultimo.af_nivel,
+        af_indice=ultimo.af_indice,
         total_tarjetas=len(tarjetas),
         tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
     )

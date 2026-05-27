@@ -103,6 +103,34 @@ def capellan_headers(client, capellan_user):
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture()
+def act_fisica_user(client):
+    payload = {
+        "full_name": "Act Fisica Test",
+        "email": "actfisica@vitalis.com",
+        "password": "password123",
+        "confirm_password": "password123",
+    }
+    client.post("/api/v1/auth/register", json=payload)
+    db = TestingSessionLocal()
+    from app.models.user import User, UserRole
+    user = db.query(User).filter(User.email == payload["email"]).first()
+    user.role = UserRole.ACTIVIDAD_FISICA
+    db.commit()
+    db.close()
+    return payload
+
+
+@pytest.fixture()
+def act_fisica_headers(client, act_fisica_user):
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"email": act_fisica_user["email"], "password": act_fisica_user["password"]},
+    )
+    token = res.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 ENCUESTA_PAYLOAD = {
     "ri_item_01": 3, "ri_item_07": 2, "ri_item_13": 4, "ri_item_20": 1,
     "ri_item_26": 3, "ri_item_32": 2, "ri_item_38": 4, "ri_item_45": 3, "ri_item_50": 2,
