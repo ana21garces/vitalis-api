@@ -132,3 +132,73 @@ def test_capellan_con_encuestas(client, auth_headers, capellan_headers):
         "pp_indice", "pp_nivel",
     ]:
         assert campo in pp
+
+
+# ── Tests Actividad Física ────────────────────────────────────────────────────
+
+AF_URL = f"{ENCUESTA_URL}/actividad-fisica/resultados"
+AF_REC_URL = f"{ENCUESTA_URL}/recomendaciones/actividad-fisica"
+
+
+def test_af_sin_auth(client):
+    res = client.get(AF_URL)
+    assert res.status_code == 401
+
+
+def test_af_acceso_denegado_sin_rol(client, auth_headers):
+    res = client.get(AF_URL, headers=auth_headers)
+    assert res.status_code == 403
+
+
+def test_af_estructura_respuesta(client, act_fisica_headers):
+    res = client.get(AF_URL, headers=act_fisica_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "total_estudiantes" in data
+    assert "grupos" in data
+    assert isinstance(data["grupos"], list)
+
+
+def test_af_con_encuestas(client, auth_headers, act_fisica_headers):
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    res = client.get(AF_URL, headers=act_fisica_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_estudiantes"] >= 1
+    grupo = data["grupos"][0]
+    assert "programa" in grupo
+    assert "total" in grupo
+    assert "estudiantes" in grupo
+    af = grupo["estudiantes"][0]["actividad_fisica"]
+    for campo in [
+        "af_item_04", "af_item_10", "af_item_16", "af_item_17",
+        "af_item_23", "af_item_29", "af_item_35", "af_item_42", "af_item_47",
+        "af_indice", "af_nivel",
+    ]:
+        assert campo in af
+
+
+def test_af_recomendaciones_sin_encuesta(client, auth_headers):
+    res = client.get(AF_REC_URL, headers=auth_headers)
+    assert res.status_code == 404
+
+
+def test_af_recomendaciones_ok(client, auth_headers):
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    res = client.get(AF_REC_URL, headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "af_nivel" in data
+    assert "af_indice" in data
+    assert "total_tarjetas" in data
+    assert "tarjetas" in data
+    assert isinstance(data["tarjetas"], list)
+    if data["tarjetas"]:
+        t = data["tarjetas"][0]
+        for campo in ["pregunta_num", "pregunta_texto", "nivel", "puntaje", "tecnica", "objetivo", "instrucciones"]:
+            assert campo in t
+
+
+def test_af_recomendaciones_sin_auth(client):
+    res = client.get(AF_REC_URL)
+    assert res.status_code == 401

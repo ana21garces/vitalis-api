@@ -105,6 +105,28 @@ def eliminar(db: Session, encuesta_id: int) -> bool:
     return True
 
 
+def obtener_resultados_af_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
+    """Retorna la encuesta más reciente de cada usuario junto con sus datos de perfil (para Actividad Física)."""
+    from sqlalchemy import func
+
+    subq = (
+        db.query(
+            EncuestaHplp.usuario_id,
+            func.max(EncuestaHplp.id).label("ultimo_id"),
+        )
+        .group_by(EncuestaHplp.usuario_id)
+        .subquery()
+    )
+
+    return (
+        db.query(EncuestaHplp, User)
+        .join(subq, EncuestaHplp.id == subq.c.ultimo_id)
+        .join(User, User.id == EncuestaHplp.usuario_id)
+        .order_by(User.program, User.full_name)
+        .all()
+    )
+
+
 def obtener_resultados_pp_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
     """Retorna la encuesta más reciente de cada usuario junto con sus datos de perfil."""
     from sqlalchemy import func
