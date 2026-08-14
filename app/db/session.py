@@ -26,10 +26,3 @@ def check_database_connection() -> None:
     except Exception as e:
         raise RuntimeError(f"[ERROR] No se pudo conectar a la base de datos: {e}")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-

@@ -1,0 +1,22 @@
+{
+  // Caché regenerable: existe en disco pero no ensucia el explorador.
+  // Ya está en .gitignore, así que nunca llega al repo.
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".pytest_cache": true,
+    "**/*.egg-info": true,
+    "test.db": true,
+    "venv": true
+  },
+  "search.exclude": {
+    "**/__pycache__": true,
+    ".pytest_cache": true,
+    "venv": true
+  },
+
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"]
+}
