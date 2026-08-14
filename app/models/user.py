@@ -1,10 +1,11 @@
+import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Integer
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
+
 from app.db.base import Base
-from sqlalchemy.orm import relationship
-import enum
 
 
 class UserRole(str, enum.Enum):
@@ -37,8 +38,6 @@ class User(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
-
-    survey_responses = relationship("SurveyResponse", back_populates="user")
 
     def __repr__(self):
         return f"<User id={self.id} email={self.email}>"
