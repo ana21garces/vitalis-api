@@ -9,7 +9,6 @@ from app.core.dependencies import get_db
 from app.models import user as _user_model          # noqa: F401 — registra tabla users
 from app.models import encuesta_hplp as _enc_model  # noqa: F401 — registra tabla encuestas_hplp
 
-# Tablas que SQLite puede crear (excluimos survey_responses que usa JSONB)
 _SQLITE_TABLES = ["users", "encuestas_hplp"]
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
@@ -47,9 +46,11 @@ def limpiar_tablas():
 
 @pytest.fixture()
 def client():
+    # Ojo: se instancia SIN "with" a propósito. El context manager dispara el
+    # lifespan de la app, que conecta a la BD real (Supabase) y corre init_db.
+    # Los tests deben correr solo contra el SQLite de arriba.
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app, raise_server_exceptions=True) as c:
-        yield c
+    yield TestClient(app, raise_server_exceptions=True)
     app.dependency_overrides.clear()
 
 
@@ -160,6 +161,11 @@ def resp_salud_headers(client, resp_salud_user):
 
 
 ENCUESTA_PAYLOAD = {
+    # Perfil universitario (se guarda en el usuario, no en la encuesta)
+    "facultad": "Ingenieria",
+    "program": "Ingenieria de Sistemas",
+    "tipo_usuario": "estudiante",
+
     "ri_item_01": 3, "ri_item_07": 2, "ri_item_13": 4, "ri_item_20": 1,
     "ri_item_26": 3, "ri_item_32": 2, "ri_item_38": 4, "ri_item_45": 3, "ri_item_50": 2,
     "n_item_02": 4, "n_item_08": 3, "n_item_14": 2, "n_item_21": 1,

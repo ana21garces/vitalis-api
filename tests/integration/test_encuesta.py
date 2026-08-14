@@ -110,9 +110,9 @@ def test_capellan_estructura_respuesta(client, capellan_headers):
     res = client.get(CAPELLAN_URL, headers=capellan_headers)
     assert res.status_code == 200
     data = res.json()
-    assert "total_estudiantes" in data
-    assert "grupos" in data
-    assert isinstance(data["grupos"], list)
+    assert "total_usuarios" in data
+    assert "facultades" in data
+    assert isinstance(data["facultades"], list)
 
 
 def test_capellan_con_encuestas(client, auth_headers, capellan_headers):
@@ -120,12 +120,14 @@ def test_capellan_con_encuestas(client, auth_headers, capellan_headers):
     res = client.get(CAPELLAN_URL, headers=capellan_headers)
     assert res.status_code == 200
     data = res.json()
-    assert data["total_estudiantes"] >= 1
-    grupo = data["grupos"][0]
-    assert "programa" in grupo
-    assert "total" in grupo
-    assert "estudiantes" in grupo
-    pp = grupo["estudiantes"][0]["psicologia_positiva"]
+    assert data["total_usuarios"] >= 1
+    facultad = data["facultades"][0]
+    assert "facultad" in facultad
+    assert "total" in facultad
+    carrera = facultad["carreras"][0]
+    assert "carrera" in carrera
+    assert "total" in carrera
+    pp = carrera["usuarios"][0]["psicologia_positiva"]
     for campo in [
         "pp_item_06", "pp_item_12", "pp_item_19", "pp_item_25",
         "pp_item_31", "pp_item_37", "pp_item_44", "pp_item_49", "pp_item_52",
@@ -154,9 +156,9 @@ def test_af_estructura_respuesta(client, act_fisica_headers):
     res = client.get(AF_URL, headers=act_fisica_headers)
     assert res.status_code == 200
     data = res.json()
-    assert "total_estudiantes" in data
-    assert "grupos" in data
-    assert isinstance(data["grupos"], list)
+    assert "total_usuarios" in data
+    assert "facultades" in data
+    assert isinstance(data["facultades"], list)
 
 
 def test_af_con_encuestas(client, auth_headers, act_fisica_headers):
@@ -164,12 +166,14 @@ def test_af_con_encuestas(client, auth_headers, act_fisica_headers):
     res = client.get(AF_URL, headers=act_fisica_headers)
     assert res.status_code == 200
     data = res.json()
-    assert data["total_estudiantes"] >= 1
-    grupo = data["grupos"][0]
-    assert "programa" in grupo
-    assert "total" in grupo
-    assert "estudiantes" in grupo
-    af = grupo["estudiantes"][0]["actividad_fisica"]
+    assert data["total_usuarios"] >= 1
+    facultad = data["facultades"][0]
+    assert "facultad" in facultad
+    assert "total" in facultad
+    carrera = facultad["carreras"][0]
+    assert "carrera" in carrera
+    assert "total" in carrera
+    af = carrera["usuarios"][0]["actividad_fisica"]
     for campo in [
         "af_item_04", "af_item_10", "af_item_16", "af_item_17",
         "af_item_23", "af_item_29", "af_item_35", "af_item_42", "af_item_47",
@@ -224,9 +228,9 @@ def test_rs_estructura_respuesta(client, resp_salud_headers):
     res = client.get(RS_URL, headers=resp_salud_headers)
     assert res.status_code == 200
     data = res.json()
-    assert "total_estudiantes" in data
-    assert "grupos" in data
-    assert isinstance(data["grupos"], list)
+    assert "total_usuarios" in data
+    assert "facultades" in data
+    assert isinstance(data["facultades"], list)
 
 
 def test_rs_con_encuestas(client, auth_headers, resp_salud_headers):
@@ -234,12 +238,14 @@ def test_rs_con_encuestas(client, auth_headers, resp_salud_headers):
     res = client.get(RS_URL, headers=resp_salud_headers)
     assert res.status_code == 200
     data = res.json()
-    assert data["total_estudiantes"] >= 1
-    grupo = data["grupos"][0]
-    assert "programa" in grupo
-    assert "total" in grupo
-    assert "estudiantes" in grupo
-    rs = grupo["estudiantes"][0]["responsabilidad_salud"]
+    assert data["total_usuarios"] >= 1
+    facultad = data["facultades"][0]
+    assert "facultad" in facultad
+    assert "total" in facultad
+    carrera = facultad["carreras"][0]
+    assert "carrera" in carrera
+    assert "total" in carrera
+    rs = carrera["usuarios"][0]["responsabilidad_salud"]
     for campo in [
         "rs_item_03", "rs_item_09", "rs_item_15", "rs_item_22",
         "rs_item_28", "rs_item_34", "rs_item_41",
