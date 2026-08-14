@@ -25,7 +25,9 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
     university = Column(String(150), nullable=True)
+    facultad = Column(String(200), nullable=True)
     program = Column(String(150), nullable=True)
+    tipo_usuario = Column(String(50), nullable=True)  # estudiante | docente | administrativo
     # Usamos String para evitar problemas de caché con SAEnum en PostgreSQL.
     # UserRole hereda de str, por lo que las comparaciones (==, !=) funcionan
     # igual que con el tipo Enum nativo.

@@ -105,8 +105,8 @@ def eliminar(db: Session, encuesta_id: int) -> bool:
     return True
 
 
-def obtener_resultados_rs_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
-    """Retorna la encuesta más reciente de cada usuario (para Responsabilidad en Salud)."""
+def _base_resultados_query(db: Session, facultad: str | None, carrera: str | None, tipo_usuario: str | None):
+    """Subconsulta base: encuesta más reciente por usuario con filtros opcionales."""
     from sqlalchemy import func
 
     subq = (
@@ -118,55 +118,113 @@ def obtener_resultados_rs_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
         .subquery()
     )
 
-    return (
+    q = (
         db.query(EncuestaHplp, User)
         .join(subq, EncuestaHplp.id == subq.c.ultimo_id)
         .join(User, User.id == EncuestaHplp.usuario_id)
-        .order_by(User.program, User.full_name)
-        .all()
     )
 
+    if facultad:
+        q = q.filter(User.facultad.ilike(facultad))
+    if carrera:
+        q = q.filter(User.program.ilike(carrera))
+    if tipo_usuario:
+        q = q.filter(User.tipo_usuario.ilike(tipo_usuario))
 
-def obtener_resultados_af_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
-    """Retorna la encuesta más reciente de cada usuario junto con sus datos de perfil (para Actividad Física)."""
-    from sqlalchemy import func
+    return q.order_by(User.facultad, User.program, User.full_name).all()
+
+
+def obtener_opciones_filtros(db: Session) -> dict:
+    """Devuelve los valores únicos disponibles para poblar los filtros del frontend."""
+    from sqlalchemy import func, distinct
 
     subq = (
-        db.query(
-            EncuestaHplp.usuario_id,
-            func.max(EncuestaHplp.id).label("ultimo_id"),
-        )
+        db.query(func.max(EncuestaHplp.id).label("ultimo_id"))
         .group_by(EncuestaHplp.usuario_id)
         .subquery()
     )
 
-    return (
-        db.query(EncuestaHplp, User)
+    base = (
+        db.query(User)
+        .join(EncuestaHplp, User.id == EncuestaHplp.usuario_id)
         .join(subq, EncuestaHplp.id == subq.c.ultimo_id)
-        .join(User, User.id == EncuestaHplp.usuario_id)
-        .order_by(User.program, User.full_name)
-        .all()
     )
 
+    facultades = [
+        r[0] for r in base.with_entities(distinct(User.facultad))
+        .filter(User.facultad.isnot(None))
+        .order_by(User.facultad)
+        .all()
+    ]
+    carreras = [
+        r[0] for r in base.with_entities(distinct(User.program))
+        .filter(User.program.isnot(None))
+        .order_by(User.program)
+        .all()
+    ]
+    tipos = [
+        r[0] for r in base.with_entities(distinct(User.tipo_usuario))
+        .filter(User.tipo_usuario.isnot(None))
+        .order_by(User.tipo_usuario)
+        .all()
+    ]
 
-def obtener_resultados_pp_todos(db: Session) -> list[tuple[EncuestaHplp, User]]:
-    """Retorna la encuesta más reciente de cada usuario junto con sus datos de perfil."""
+    return {"facultades": facultades, "carreras": carreras, "tipos_usuario": tipos}
+
+
+def obtener_resumen_admin(db: Session) -> dict:
+    """Cuenta totales para el Resumen General del administrador."""
     from sqlalchemy import func
+    from app.models.user import UserRole
 
-    # Subconsulta: id de la encuesta más reciente por usuario
-    subq = (
-        db.query(
-            EncuestaHplp.usuario_id,
-            func.max(EncuestaHplp.id).label("ultimo_id"),
-        )
-        .group_by(EncuestaHplp.usuario_id)
-        .subquery()
-    )
+    roles_profesionales = [
+        UserRole.ADMIN.value,
+        UserRole.CAPELLAN.value,
+        UserRole.ACTIVIDAD_FISICA.value,
+        UserRole.RESPONSABILIDAD_SALUD.value,
+        UserRole.HEALTH_MANAGER.value,
+    ]
 
-    return (
-        db.query(EncuestaHplp, User)
-        .join(subq, EncuestaHplp.id == subq.c.ultimo_id)
+    total_usuarios = db.query(User).filter(User.role.notin_(roles_profesionales)).count()
+    completaron = (
+        db.query(func.count(func.distinct(EncuestaHplp.usuario_id)))
         .join(User, User.id == EncuestaHplp.usuario_id)
-        .order_by(User.program, User.full_name)
-        .all()
+        .filter(User.role.notin_(roles_profesionales))
+        .scalar()
     )
+    sin_completar = total_usuarios - completaron
+    tasa = round((completaron / total_usuarios * 100), 1) if total_usuarios > 0 else 0.0
+
+    return {
+        "total_usuarios": total_usuarios,
+        "completaron_encuesta": completaron,
+        "sin_completar": sin_completar,
+        "tasa_participacion": tasa,
+    }
+
+
+def obtener_resultados_rs_todos(
+    db: Session,
+    facultad: str | None = None,
+    carrera: str | None = None,
+    tipo_usuario: str | None = None,
+) -> list[tuple[EncuestaHplp, User]]:
+    return _base_resultados_query(db, facultad, carrera, tipo_usuario)
+
+
+def obtener_resultados_af_todos(
+    db: Session,
+    facultad: str | None = None,
+    carrera: str | None = None,
+    tipo_usuario: str | None = None,
+) -> list[tuple[EncuestaHplp, User]]:
+    return _base_resultados_query(db, facultad, carrera, tipo_usuario)
+
+
+def obtener_resultados_pp_todos(
+    db: Session,
+    facultad: str | None = None,
+    carrera: str | None = None,
+    tipo_usuario: str | None = None,
+) -> list[tuple[EncuestaHplp, User]]:
+    return _base_resultados_query(db, facultad, carrera, tipo_usuario)

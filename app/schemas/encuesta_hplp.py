@@ -1,11 +1,18 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 Val = Literal[1, 2, 3, 4]
 
+TipoUsuario = Literal["estudiante", "docente", "administrativo"]
+
 
 class EncuestaCreate(BaseModel):
+    # Datos de perfil universitario (se guardan en el usuario)
+    facultad: str
+    program: str
+    tipo_usuario: TipoUsuario
+
     # Relaciones Interpersonales — 9 ítems (campo: ri_)
     ri_item_01: Val
     ri_item_07: Val
@@ -119,6 +126,31 @@ class ResetearResponse(BaseModel):
     message: str
 
 
+class OpcionesFiltrosResponse(BaseModel):
+    facultades: List[str]
+    carreras: List[str]
+    tipos_usuario: List[str]
+
+
+class ResumenAdminResponse(BaseModel):
+    total_usuarios: int
+    completaron_encuesta: int
+    sin_completar: int
+    tasa_participacion: float
+
+
+# ── Schemas compartidos por los tres roles ───────────────────────────────────
+
+class TarjetaRecomendacion(BaseModel):
+    pregunta_num: int
+    pregunta_texto: str
+    nivel: str
+    puntaje: int
+    tecnica: str
+    objetivo: str
+    instrucciones: List[str]
+
+
 # ── Vista Capellán: Psicología Positiva ──────────────────────────────────────
 
 class PsicologiaPositivaItems(BaseModel):
@@ -139,31 +171,33 @@ class ResultadoCapellanItem(BaseModel):
     encuesta_id: int
     usuario_id: str
     nombre: str
+    facultad: str | None
     programa: str | None
+    tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
     psicologia_positiva: PsicologiaPositivaItems
 
 
-class ProgramaGroup(BaseModel):
-    programa: str | None
+class CarreraGroupPP(BaseModel):
+    carrera: str | None
     total: int
-    estudiantes: List[ResultadoCapellanItem]
+    usuarios: List[ResultadoCapellanItem]
+
+
+class FacultadGroupPP(BaseModel):
+    facultad: str | None
+    total: int
+    carreras: List[CarreraGroupPP]
+
+
+# Alias de compatibilidad
+ProgramaGroup = CarreraGroupPP
 
 
 class ResultadosCapellanResponse(BaseModel):
-    total_estudiantes: int
-    grupos: List[ProgramaGroup]
-
-
-class TarjetaRecomendacion(BaseModel):
-    pregunta_num: int
-    pregunta_texto: str
-    nivel: str
-    puntaje: int
-    tecnica: str
-    objetivo: str
-    instrucciones: List[str]
+    total_usuarios: int
+    facultades: List[FacultadGroupPP]
 
 
 class RecomendacionesPPResponse(BaseModel):
@@ -195,21 +229,33 @@ class ResultadoActFisicaItem(BaseModel):
     encuesta_id: int
     usuario_id: str
     nombre: str
+    facultad: str | None
     programa: str | None
+    tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
     actividad_fisica: ActividadFisicaItems
 
 
-class ProgramaGroupAF(BaseModel):
-    programa: str | None
+class CarreraGroupAF(BaseModel):
+    carrera: str | None
     total: int
-    estudiantes: List[ResultadoActFisicaItem]
+    usuarios: List[ResultadoActFisicaItem]
+
+
+class FacultadGroupAF(BaseModel):
+    facultad: str | None
+    total: int
+    carreras: List[CarreraGroupAF]
+
+
+# Alias de compatibilidad
+ProgramaGroupAF = CarreraGroupAF
 
 
 class ResultadosActFisicaResponse(BaseModel):
-    total_estudiantes: int
-    grupos: List[ProgramaGroupAF]
+    total_usuarios: int
+    facultades: List[FacultadGroupAF]
 
 
 class RecomendacionesAFResponse(BaseModel):
@@ -239,21 +285,33 @@ class ResultadoRespSaludItem(BaseModel):
     encuesta_id: int
     usuario_id: str
     nombre: str
+    facultad: str | None
     programa: str | None
+    tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
     responsabilidad_salud: ResponsabilidadSaludItems
 
 
-class ProgramaGroupRS(BaseModel):
-    programa: str | None
+class CarreraGroupRS(BaseModel):
+    carrera: str | None
     total: int
-    estudiantes: List[ResultadoRespSaludItem]
+    usuarios: List[ResultadoRespSaludItem]
+
+
+class FacultadGroupRS(BaseModel):
+    facultad: str | None
+    total: int
+    carreras: List[CarreraGroupRS]
+
+
+# Alias de compatibilidad
+ProgramaGroupRS = CarreraGroupRS
 
 
 class ResultadosRespSaludResponse(BaseModel):
-    total_estudiantes: int
-    grupos: List[ProgramaGroupRS]
+    total_usuarios: int
+    facultades: List[FacultadGroupRS]
 
 
 class RecomendacionesRSResponse(BaseModel):
