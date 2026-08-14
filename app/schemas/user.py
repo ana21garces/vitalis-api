@@ -9,8 +9,9 @@ class UserResponse(BaseModel):
     email: EmailStr
     full_name: str
     university: str | None
+    facultad: str | None
     program: str | None
-    
+    tipo_usuario: str | None
     role: UserRole
     is_active: bool
     is_verified: bool

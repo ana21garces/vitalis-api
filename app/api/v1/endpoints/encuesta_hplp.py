@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
@@ -12,20 +13,25 @@ from app.schemas.encuesta_hplp import (
     DimensionResultado,
     EstadoEncuesta,
     ResetearResponse,
+    OpcionesFiltrosResponse,
+    ResumenAdminResponse,
     PsicologiaPositivaItems,
     ResultadoCapellanItem,
-    ProgramaGroup,
+    CarreraGroupPP,
+    FacultadGroupPP,
     ResultadosCapellanResponse,
     RecomendacionesPPResponse,
     TarjetaRecomendacion,
     ActividadFisicaItems,
     ResultadoActFisicaItem,
-    ProgramaGroupAF,
+    CarreraGroupAF,
+    FacultadGroupAF,
     ResultadosActFisicaResponse,
     RecomendacionesAFResponse,
     ResponsabilidadSaludItems,
     ResultadoRespSaludItem,
-    ProgramaGroupRS,
+    CarreraGroupRS,
+    FacultadGroupRS,
     ResultadosRespSaludResponse,
     RecomendacionesRSResponse,
 )
@@ -109,6 +115,12 @@ def guardar_encuesta(
             detail="El usuario ya completó la encuesta",
         )
 
+    # Actualizar perfil universitario del usuario con los datos de la encuesta
+    current_user.facultad = payload.facultad
+    current_user.program = payload.program
+    current_user.tipo_usuario = payload.tipo_usuario
+    db.add(current_user)
+
     puntajes = calcular_puntajes(payload)
     encuesta = repo.crear_encuesta(db, payload, puntajes, current_user.id)
 
@@ -187,11 +199,14 @@ def resetear_encuesta(
 def resultados_psicologia_positiva(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    carrera: Optional[str] = Query(None, description="Filtrar por carrera/programa"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo: estudiante, docente, administrativo"),
 ):
     """
     Vista exclusiva para el capellán.
-    Devuelve los resultados de Psicología Positiva (ítems 6,12,19,25,31,37,44,49,52)
-    de todos los estudiantes que completaron la encuesta, agrupados por programa/facultad.
+    Devuelve resultados de Psicología Positiva agrupados por facultad y carrera.
+    Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
     if current_user.role != UserRole.CAPELLAN:
         raise HTTPException(
@@ -199,15 +214,18 @@ def resultados_psicologia_positiva(
             detail="Solo el capellán puede acceder a esta vista",
         )
 
-    filas = repo.obtener_resultados_pp_todos(db)
+    filas = repo.obtener_resultados_pp_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
 
-    grupos: dict[str | None, list[ResultadoCapellanItem]] = {}
+    # Agrupación: facultad → carrera → usuarios
+    por_facultad: dict[str | None, dict[str | None, list[ResultadoCapellanItem]]] = {}
     for encuesta, usuario in filas:
         item = ResultadoCapellanItem(
             encuesta_id=encuesta.id,
             usuario_id=str(usuario.id),
             nombre=usuario.full_name,
+            facultad=usuario.facultad,
             programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
             psicologia_positiva=PsicologiaPositivaItems(
@@ -224,16 +242,23 @@ def resultados_psicologia_positiva(
                 pp_nivel=encuesta.pp_nivel,
             ),
         )
-        grupos.setdefault(usuario.program, []).append(item)
+        por_facultad.setdefault(usuario.facultad, {}).setdefault(usuario.program, []).append(item)
 
-    grupos_list = [
-        ProgramaGroup(programa=prog, total=len(estudiantes), estudiantes=estudiantes)
-        for prog, estudiantes in grupos.items()
+    facultades_list = [
+        FacultadGroupPP(
+            facultad=fac,
+            total=sum(len(v) for v in carreras.values()),
+            carreras=[
+                CarreraGroupPP(carrera=car, total=len(usuarios), usuarios=usuarios)
+                for car, usuarios in carreras.items()
+            ],
+        )
+        for fac, carreras in por_facultad.items()
     ]
 
     return ResultadosCapellanResponse(
-        total_estudiantes=len(filas),
-        grupos=grupos_list,
+        total_usuarios=len(filas),
+        facultades=facultades_list,
     )
 
 
@@ -270,11 +295,14 @@ def recomendaciones_psicologia_positiva(
 def resultados_actividad_fisica(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    carrera: Optional[str] = Query(None, description="Filtrar por carrera/programa"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo: estudiante, docente, administrativo"),
 ):
     """
     Vista exclusiva para el rol de Actividad Física.
-    Devuelve los resultados de Actividad Física (ítems 4,10,16,17,23,29,35,42,47)
-    de todos los estudiantes que completaron la encuesta, agrupados por programa/facultad.
+    Devuelve resultados agrupados por facultad y carrera.
+    Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
     if current_user.role != UserRole.ACTIVIDAD_FISICA:
         raise HTTPException(
@@ -282,15 +310,17 @@ def resultados_actividad_fisica(
             detail="Solo el profesional de Actividad Física puede acceder a esta vista",
         )
 
-    filas = repo.obtener_resultados_af_todos(db)
+    filas = repo.obtener_resultados_af_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
 
-    grupos: dict[str | None, list[ResultadoActFisicaItem]] = {}
+    por_facultad: dict[str | None, dict[str | None, list[ResultadoActFisicaItem]]] = {}
     for encuesta, usuario in filas:
         item = ResultadoActFisicaItem(
             encuesta_id=encuesta.id,
             usuario_id=str(usuario.id),
             nombre=usuario.full_name,
+            facultad=usuario.facultad,
             programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
             actividad_fisica=ActividadFisicaItems(
@@ -307,16 +337,23 @@ def resultados_actividad_fisica(
                 af_nivel=encuesta.af_nivel,
             ),
         )
-        grupos.setdefault(usuario.program, []).append(item)
+        por_facultad.setdefault(usuario.facultad, {}).setdefault(usuario.program, []).append(item)
 
-    grupos_list = [
-        ProgramaGroupAF(programa=prog, total=len(estudiantes), estudiantes=estudiantes)
-        for prog, estudiantes in grupos.items()
+    facultades_list = [
+        FacultadGroupAF(
+            facultad=fac,
+            total=sum(len(v) for v in carreras.values()),
+            carreras=[
+                CarreraGroupAF(carrera=car, total=len(usuarios), usuarios=usuarios)
+                for car, usuarios in carreras.items()
+            ],
+        )
+        for fac, carreras in por_facultad.items()
     ]
 
     return ResultadosActFisicaResponse(
-        total_estudiantes=len(filas),
-        grupos=grupos_list,
+        total_usuarios=len(filas),
+        facultades=facultades_list,
     )
 
 
@@ -353,11 +390,14 @@ def recomendaciones_actividad_fisica(
 def resultados_responsabilidad_salud(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    carrera: Optional[str] = Query(None, description="Filtrar por carrera/programa"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo: estudiante, docente, administrativo"),
 ):
     """
     Vista exclusiva para el rol de Responsabilidad en Salud.
-    Devuelve los resultados (ítems 3,9,15,22,28,34,41) de todos los estudiantes
-    que completaron la encuesta, agrupados por programa/facultad.
+    Devuelve resultados agrupados por facultad y carrera.
+    Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
     if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
         raise HTTPException(
@@ -365,15 +405,17 @@ def resultados_responsabilidad_salud(
             detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
         )
 
-    filas = repo.obtener_resultados_rs_todos(db)
+    filas = repo.obtener_resultados_rs_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
 
-    grupos: dict[str | None, list[ResultadoRespSaludItem]] = {}
+    por_facultad: dict[str | None, dict[str | None, list[ResultadoRespSaludItem]]] = {}
     for encuesta, usuario in filas:
         item = ResultadoRespSaludItem(
             encuesta_id=encuesta.id,
             usuario_id=str(usuario.id),
             nombre=usuario.full_name,
+            facultad=usuario.facultad,
             programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
             responsabilidad_salud=ResponsabilidadSaludItems(
@@ -388,16 +430,23 @@ def resultados_responsabilidad_salud(
                 rs_nivel=encuesta.rs_nivel,
             ),
         )
-        grupos.setdefault(usuario.program, []).append(item)
+        por_facultad.setdefault(usuario.facultad, {}).setdefault(usuario.program, []).append(item)
 
-    grupos_list = [
-        ProgramaGroupRS(programa=prog, total=len(estudiantes), estudiantes=estudiantes)
-        for prog, estudiantes in grupos.items()
+    facultades_list = [
+        FacultadGroupRS(
+            facultad=fac,
+            total=sum(len(v) for v in carreras.values()),
+            carreras=[
+                CarreraGroupRS(carrera=car, total=len(usuarios), usuarios=usuarios)
+                for car, usuarios in carreras.items()
+            ],
+        )
+        for fac, carreras in por_facultad.items()
     ]
 
     return ResultadosRespSaludResponse(
-        total_estudiantes=len(filas),
-        grupos=grupos_list,
+        total_usuarios=len(filas),
+        facultades=facultades_list,
     )
 
 
@@ -428,6 +477,51 @@ def recomendaciones_responsabilidad_salud(
         total_tarjetas=len(tarjetas),
         tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
     )
+
+
+@router.get("/admin/resumen", response_model=ResumenAdminResponse)
+def resumen_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el administrador.
+    Devuelve totales: usuarios registrados, que completaron la encuesta HPLP,
+    sin completar y tasa de participación.
+    Solo cuenta usuarios con rol student/health_manager (excluye profesionales y admin).
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden acceder a este resumen",
+        )
+    return repo.obtener_resumen_admin(db)
+
+
+@router.get("/filtros/opciones", response_model=OpcionesFiltrosResponse)
+def opciones_filtros(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Devuelve los valores únicos de facultad, carrera y tipo_usuario
+    presentes en los resultados de la encuesta HPLP.
+    Úsalo para poblar los dropdowns de filtros en el frontend.
+    Accesible por cualquier rol profesional o admin.
+    """
+    roles_permitidos = {
+        UserRole.ADMIN,
+        UserRole.CAPELLAN,
+        UserRole.ACTIVIDAD_FISICA,
+        UserRole.RESPONSABILIDAD_SALUD,
+        UserRole.HEALTH_MANAGER,
+    }
+    if current_user.role not in roles_permitidos:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para acceder a las opciones de filtros",
+        )
+    return repo.obtener_opciones_filtros(db)
 
 
 @router.get("/historial", response_model=EncuestaHistorialResponse)

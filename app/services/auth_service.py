@@ -18,7 +18,7 @@ class AuthService:
         existing_user = self.repo.get_by_email(data.email)
         if existing_user:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail="El correo ya está registrado"
             )
 

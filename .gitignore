@@ -17,10 +17,11 @@ build/
 .env
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 
-# Alembic
+# Alembic (las revisiones generadas no se versionan; schema.sql si)
 migrations/versions/*.py
 
 # Testing
@@ -29,8 +30,8 @@ migrations/versions/*.py
 htmlcov/
 test.db
 
-# Scripts temporales
-crear_capellan.py
+# Claude Code (worktrees temporales)
+.claude/
 
 # OS
 .DS_Store

@@ -1,7 +1,9 @@
-from pydantic_settings import BaseSettings
 from pathlib import Path
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 
 class Settings(BaseSettings):
     # App
@@ -20,12 +22,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     # CORS
-    # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / ".env",
+        case_sensitive=True,
+    )
 
 
 settings = Settings()

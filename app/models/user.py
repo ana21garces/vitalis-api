@@ -1,10 +1,11 @@
+import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Integer
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
+
 from app.db.base import Base
-from sqlalchemy.orm import relationship
-import enum
 
 
 class UserRole(str, enum.Enum):
@@ -24,7 +25,9 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
     university = Column(String(150), nullable=True)
+    facultad = Column(String(200), nullable=True)
     program = Column(String(150), nullable=True)
+    tipo_usuario = Column(String(50), nullable=True)  # estudiante | docente | administrativo
     # Usamos String para evitar problemas de caché con SAEnum en PostgreSQL.
     # UserRole hereda de str, por lo que las comparaciones (==, !=) funcionan
     # igual que con el tipo Enum nativo.
@@ -37,8 +40,6 @@ class User(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
-
-    survey_responses = relationship("SurveyResponse", back_populates="user")
 
     def __repr__(self):
         return f"<User id={self.id} email={self.email}>"
