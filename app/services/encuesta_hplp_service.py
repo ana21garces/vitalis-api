@@ -1,60 +1,62 @@
 from app.schemas.encuesta_hplp import EncuestaCreate
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Mapeo PEPS II correcto por número de ítem.
+# Subescalas del instrumento HPLP-II ASD (adaptación, 52 ítems).
 #
-# Los prefijos (ri_, n_, af_…) en los nombres de campo del frontend NO coinciden
-# con las subescalas reales del instrumento HPLP-II ASD.  Se usa el número del
-# ítem para asignarlo a la dimensión que corresponde según el instrumento.
+# El prefijo del campo (ri_, n_, rs_, af_, me_, pp_) YA indica la dimensión a la
+# que pertenece el ítem: el número del campo es la posición de la pregunta en el
+# cuestionario, y el prefijo su dimensión.  Ambos vienen de QUESTION_KEY_MAP en
+# el frontend y coinciden con el texto que se le muestra al usuario.
 #
-#  RI (9): ítems  1, 7,13,19,25,31,37,43,49
-#  N  (9): ítems  2, 8,14,20,26,32,38,44,50
-#  RS (9): ítems  3, 9,15,21,27,33,39,45,51
-#  AF (8): ítems  4,10,16,22,28,34,40,46
-#  ME (8): ítems  5,11,17,23,29,35,41,47
-#  PP (9): ítems  6,12,18,24,30,36,42,48,52
+# OJO — no aplicar aquí la numeración del HPLP-II original (1,7,13,19… por
+# módulo 6).  Esta adaptación reordenó y redistribuyó los ítems: Nutrición tiene
+# 10 (separa proteína vegetal, ítem 39, de animal, ítem 40) y Responsabilidad en
+# Salud tiene 7, en vez de 9 y 9.  Verificable contra el texto de las preguntas:
+# la 17 es "actividades físicas moderadas" (AF), la 19 "mirar hacia el futuro de
+# forma positiva" (PP) y la 22 "buscar una segunda opinión" (RS).
+#
+# Este mismo criterio es el que usan los servicios recomendaciones_*_service.
 # ──────────────────────────────────────────────────────────────────────────────
 
-SUBSCALES_PEPS2: dict[str, list[str]] = {
-    "relaciones_interpersonales": [   # ítems 1,7,13,19,25,31,37,43,49
-        "ri_item_01", "ri_item_07", "ri_item_13",
-        "pp_item_19", "pp_item_25", "pp_item_31", "pp_item_37",
-        "me_item_43", "pp_item_49",
-    ],
-    "nutricion": [                    # ítems 2,8,14,20,26,32,38,44,50
-        "n_item_02",  "n_item_08",  "n_item_14",
-        "ri_item_20", "ri_item_26", "ri_item_32", "ri_item_38",
-        "pp_item_44", "ri_item_50",
-    ],
-    "responsabilidad_salud": [        # ítems 3,9,15,21,27,33,39,45,51
-        "rs_item_03", "rs_item_09", "rs_item_15",
-        "n_item_21",  "n_item_27",  "n_item_33",  "n_item_39",
-        "ri_item_45", "n_item_51",
-    ],
-    "actividad_fisica": [             # ítems 4,10,16,22,28,34,40,46
-        "af_item_04", "af_item_10", "af_item_16",
-        "rs_item_22", "rs_item_28", "rs_item_34",
-        "n_item_40",  "n_item_46",
-    ],
-    "manejo_estres": [                # ítems 5,11,17,23,29,35,41,47
-        "me_item_05", "me_item_11",
-        "af_item_17", "af_item_23", "af_item_29", "af_item_35",
-        "rs_item_41", "af_item_47",
-    ],
-    "psicologia_positiva": [          # ítems 6,12,18,24,30,36,42,48,52
-        "pp_item_06", "pp_item_12",
-        "me_item_18", "me_item_24", "me_item_30", "me_item_36",
-        "af_item_42", "me_item_48",
-        "pp_item_52",
-    ],
+# dimensión -> (prefijo de columna en BD, campos de ítem)
+SUBSCALES_HPLP2: dict[str, tuple[str, list[str]]] = {
+    "relaciones_interpersonales": ("ri", [   # ítems 1,7,13,20,26,32,38,45,50
+        "ri_item_01", "ri_item_07", "ri_item_13", "ri_item_20", "ri_item_26",
+        "ri_item_32", "ri_item_38", "ri_item_45", "ri_item_50",
+    ]),
+    "nutricion": ("n", [                     # ítems 2,8,14,21,27,33,39,40,46,51
+        "n_item_02", "n_item_08", "n_item_14", "n_item_21", "n_item_27",
+        "n_item_33", "n_item_39", "n_item_40", "n_item_46", "n_item_51",
+    ]),
+    "responsabilidad_salud": ("rs", [        # ítems 3,9,15,22,28,34,41
+        "rs_item_03", "rs_item_09", "rs_item_15", "rs_item_22", "rs_item_28",
+        "rs_item_34", "rs_item_41",
+    ]),
+    "actividad_fisica": ("af", [             # ítems 4,10,16,17,23,29,35,42,47
+        "af_item_04", "af_item_10", "af_item_16", "af_item_17", "af_item_23",
+        "af_item_29", "af_item_35", "af_item_42", "af_item_47",
+    ]),
+    "manejo_estres": ("me", [                # ítems 5,11,18,24,30,36,43,48
+        "me_item_05", "me_item_11", "me_item_18", "me_item_24", "me_item_30",
+        "me_item_36", "me_item_43", "me_item_48",
+    ]),
+    "psicologia_positiva": ("pp", [          # ítems 6,12,19,25,31,37,44,49,52
+        "pp_item_06", "pp_item_12", "pp_item_19", "pp_item_25", "pp_item_31",
+        "pp_item_37", "pp_item_44", "pp_item_49", "pp_item_52",
+    ]),
 }
 
-# Los 52 campos de ítem. Se derivan del mapeo para que no puedan
-# desincronizarse, y para excluir los campos de perfil (facultad, program,
-# tipo_usuario) que EncuestaCreate también trae.
+# Los 52 campos de ítem. Se derivan del mapeo para que no puedan desincronizarse,
+# y para excluir los campos de perfil (facultad, program, tipo_usuario) que
+# EncuestaCreate también trae.
 ITEM_FIELDS: list[str] = [
-    campo for campos in SUBSCALES_PEPS2.values() for campo in campos
+    campo for _, campos in SUBSCALES_HPLP2.values() for campo in campos
 ]
+
+assert len(ITEM_FIELDS) == len(set(ITEM_FIELDS)) == 52, (
+    f"El mapeo de subescalas debe cubrir los 52 ítems sin repetir; "
+    f"tiene {len(ITEM_FIELDS)} ({len(set(ITEM_FIELDS))} únicos)."
+)
 
 NIVELES_CRUDO = [
     (52,  90,  "Pobre"),
@@ -89,31 +91,19 @@ def _nivel_global(puntaje_crudo: int) -> str:
 
 def calcular_puntajes(payload: EncuestaCreate) -> dict:
     """
-    Calcula índices PEPS II para cada dimensión y el puntaje global.
+    Calcula el índice PEPS II de cada dimensión y el puntaje global.
     Retorna un dict listo para guardar en el modelo EncuestaHplp.
     """
     data = payload.model_dump()
 
     resultados: dict = {}
 
-    for dim, campos in SUBSCALES_PEPS2.items():
-        valores = [data[c] for c in campos]
-        promedio = sum(valores) / len(valores)
+    for prefijo, campos in SUBSCALES_HPLP2.values():
+        promedio = sum(data[c] for c in campos) / len(campos)
         indice = _indice(promedio)
-        nivel = _nivel_por_indice(indice)
-
-        # Prefijo de columna en BD (ri, n, rs, af, me, pp)
-        prefijo = {
-            "relaciones_interpersonales": "ri",
-            "nutricion":                  "n",
-            "responsabilidad_salud":      "rs",
-            "actividad_fisica":           "af",
-            "manejo_estres":              "me",
-            "psicologia_positiva":        "pp",
-        }[dim]
 
         resultados[f"{prefijo}_indice"] = indice
-        resultados[f"{prefijo}_nivel"]  = nivel
+        resultados[f"{prefijo}_nivel"]  = _nivel_por_indice(indice)
 
     # Global
     puntaje_crudo = sum(data[c] for c in ITEM_FIELDS)   # suma de los 52 ítems
