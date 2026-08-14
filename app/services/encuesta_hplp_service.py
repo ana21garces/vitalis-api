@@ -49,6 +49,13 @@ SUBSCALES_PEPS2: dict[str, list[str]] = {
     ],
 }
 
+# Los 52 campos de ítem. Se derivan del mapeo para que no puedan
+# desincronizarse, y para excluir los campos de perfil (facultad, program,
+# tipo_usuario) que EncuestaCreate también trae.
+ITEM_FIELDS: list[str] = [
+    campo for campos in SUBSCALES_PEPS2.values() for campo in campos
+]
+
 NIVELES_CRUDO = [
     (52,  90,  "Pobre"),
     (91,  129, "Moderado"),
@@ -109,7 +116,7 @@ def calcular_puntajes(payload: EncuestaCreate) -> dict:
         resultados[f"{prefijo}_nivel"]  = nivel
 
     # Global
-    puntaje_crudo = sum(data.values())           # suma de los 52 ítems
+    puntaje_crudo = sum(data[c] for c in ITEM_FIELDS)   # suma de los 52 ítems
     promedio_global = puntaje_crudo / 52
     resultados["puntaje_crudo"] = puntaje_crudo
     resultados["indice_global"] = _indice(promedio_global)
