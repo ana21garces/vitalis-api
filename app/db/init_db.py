@@ -10,10 +10,10 @@ from app.models.user import User  # noqa: F401
 
 
 def init_db() -> None:
-    print("Creando tablas...")
-    print(f"Tablas detectadas: {list(Base.metadata.tables.keys())}")
+    print("Creando tablas...", flush=True)
+    print(f"Tablas detectadas: {list(Base.metadata.tables.keys())}", flush=True)
     Base.metadata.create_all(bind=engine)
-    print("[OK] Tablas creadas correctamente")
+    print("[OK] Tablas creadas correctamente", flush=True)
 
     # Migración: convierte la columna role de enum nativo a VARCHAR(50)
     try:
@@ -21,7 +21,7 @@ def init_db() -> None:
             conn.execute(text(
                 "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(50)"
             ))
-        print("[OK] Columna role migrada a VARCHAR(50)")
+        print("[OK] Columna role migrada a VARCHAR(50)", flush=True)
     except Exception:
         pass
 
@@ -33,7 +33,7 @@ def init_db() -> None:
         conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS tipo_usuario VARCHAR(50)"
         ))
-    print("[OK] Columnas facultad y tipo_usuario verificadas")
+    print("[OK] Columnas facultad y tipo_usuario verificadas", flush=True)
 
     # Migración: normaliza role a minúsculas.
     # El SAEnum original guardaba el nombre del miembro ("STUDENT") en vez de su
@@ -47,4 +47,4 @@ def init_db() -> None:
             "UPDATE users SET role = lower(role) WHERE role <> lower(role)"
         ))
     if resultado.rowcount:
-        print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas")
+        print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas", flush=True)

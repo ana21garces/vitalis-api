@@ -22,7 +22,7 @@ def check_database_connection() -> None:
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-        print("[OK] Conexion a base de datos exitosa")
+        print("[OK] Conexion a base de datos exitosa", flush=True)
     except Exception as e:
         raise RuntimeError(f"[ERROR] No se pudo conectar a la base de datos: {e}")
 

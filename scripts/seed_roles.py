@@ -8,6 +8,7 @@ Uso:
 Las contraseñas son de arranque: cámbialas después del primer login.
 """
 import sys
+import uuid
 
 from sqlalchemy import text
 
@@ -31,11 +32,15 @@ USUARIOS_PROFESIONALES = {
     ),
 }
 
+# El id se genera en Python a proposito: gen_random_uuid() solo es nativa
+# desde PostgreSQL 13, y en versiones anteriores exige la extension pgcrypto,
+# que instalar requiere superusuario. Asi el script no depende de la version
+# del servidor ni de que haya extensiones cargadas.
 INSERT_SQL = text("""
     INSERT INTO users (id, email, password_hash, full_name, role,
                        is_active, is_verified, total_xp, current_level,
                        streak_days, created_at, updated_at)
-    VALUES (gen_random_uuid(), :email, :pwd, :nombre, :rol,
+    VALUES (:id, :email, :pwd, :nombre, :rol,
             true, true, 0, 1, 0, now(), now())
 """)
 
@@ -50,7 +55,7 @@ def crear_usuario(conn, rol: str, email: str, nombre: str, password: str) -> Non
         return
 
     conn.execute(INSERT_SQL, {
-        "email": email, "pwd": hash_password(password),
+        "id": uuid.uuid4(), "email": email, "pwd": hash_password(password),
         "nombre": nombre, "rol": rol,
     })
     conn.commit()
