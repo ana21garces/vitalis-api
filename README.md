@@ -93,7 +93,14 @@ python -m scripts.seed_roles
 
 Crea los usuarios de cada rol profesional que aún no existan. Acepta un rol
 concreto como argumento (`python -m scripts.seed_roles capellan`).
-Las contraseñas son de arranque: cámbialas tras el primer login.
+
+La contraseña se genera al azar y **se imprime una sola vez**: guárdala en un
+gestor de contraseñas en ese momento. No queda en el código ni en la base de
+datos, solo su hash. Para cambiarle la contraseña a un usuario que ya existe:
+
+```bash
+python -m scripts.seed_roles --rotar capellan
+```
 
 ### Recalcular índices
 
