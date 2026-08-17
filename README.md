@@ -112,6 +112,20 @@ Recalcula las columnas derivadas (`*_indice`, `*_nivel`, `puntaje_crudo`,
 `indice_global`, `nivel_global`) a partir de los ítems crudos. Solo se necesita
 tras cambiar el mapeo de subescalas. Sin `--dry-run` escribe en la BD.
 
+### Reporte de usuarios
+
+```bash
+python -m scripts.reporte_usuarios
+```
+
+Genera un CSV con una fila por usuario encuestable: perfil, si completó la
+encuesta, el puntaje global y el índice y nivel de las seis dimensiones. Las
+cuentas profesionales y de administración quedan fuera.
+
+Toma los índices ya guardados en la base de datos, así que **si se cambia el
+mapeo de subescalas hay que correr `scripts.recalcular_indices` antes** de
+regenerar el reporte, o saldrá con los valores viejos.
+
 ### Tests
 
 ```bash
