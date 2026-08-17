@@ -34,3 +34,17 @@ def init_db() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS tipo_usuario VARCHAR(50)"
         ))
     print("[OK] Columnas facultad y tipo_usuario verificadas")
+
+    # Migración: normaliza role a minúsculas.
+    # El SAEnum original guardaba el nombre del miembro ("STUDENT") en vez de su
+    # valor ("student"). Al pasar la columna a VARCHAR esos valores quedaron tal
+    # cual, y los usuarios creados después nacen en minúscula: la tabla termina
+    # con los dos formatos. Hoy no rompe nada porque todos los guardas comparan
+    # con != contra roles profesionales, pero cualquier comparación por igualdad
+    # con UserRole.STUDENT fallaria en silencio.
+    with engine.begin() as conn:
+        resultado = conn.execute(text(
+            "UPDATE users SET role = lower(role) WHERE role <> lower(role)"
+        ))
+    if resultado.rowcount:
+        print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas")

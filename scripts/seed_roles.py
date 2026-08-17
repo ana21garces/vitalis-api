@@ -17,6 +17,9 @@ from app.models.user import UserRole
 
 # rol -> (email, nombre completo, contraseña inicial)
 USUARIOS_PROFESIONALES = {
+    UserRole.ADMIN.value: (
+        "admin@vitalis.com", "Administrador Vitalis", "Admin1234",
+    ),
     UserRole.CAPELLAN.value: (
         "capellan@vitalis.com", "Capellan Vitalis", "Capellan1234",
     ),
