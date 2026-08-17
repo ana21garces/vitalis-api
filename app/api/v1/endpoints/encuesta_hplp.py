@@ -180,6 +180,22 @@ def resetear_encuesta(
     """
     Solo administradores pueden resetear la encuesta de un usuario
     para que pueda volver a completarla.
+
+    OJO — esto BORRA la encuesta, no la archiva.
+
+    El objetivo del proyecto es que los profesionales puedan reasignar la
+    encuesta y comparar los resultados anteriores con los nuevos. Con el
+    borrado, reasignar destruye justamente el dato que se quiere comparar.
+
+    Para habilitarlo hay que levantar dos bloqueos: el guard ya_respondio de
+    guardar_encuesta, y este borrado, que deberia pasar a marcar al usuario
+    como habilitado para responder otra vez. La capa de repositorio ya soporta
+    varias encuestas por usuario (obtener_por_usuario las devuelve todas,
+    obtener_ultimo toma la mas reciente, y las vistas profesionales agrupan
+    con func.max(id)), asi que el cambio es acotado.
+
+    Mientras tanto: no usar en produccion, y no eliminar /historial aunque hoy
+    solo pueda devolver un elemento.
     """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
