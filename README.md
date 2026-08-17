@@ -119,12 +119,24 @@ pytest -q
 ```
 
 Corren contra SQLite, aislados de la BD real. El fixture `client` instancia
-`TestClient` **sin** context manager a propósito: el `lifespan` conectaría a
-Supabase.
+`TestClient` **sin** context manager a propósito: ese context manager dispara
+el `lifespan`, que conecta a la base de datos de producción y ejecuta
+`init_db()`.
+
+Son seguros de ejecutar en el servidor, y conviene hacerlo tras cada
+despliegue.
 
 ---
 
 ## Despliegue
 
-`Procfile` arranca `uvicorn app.main:app`. Al iniciar, `init_db()` crea las
-tablas que falten y aplica migraciones idempotentes sobre `users`.
+Corre en el servidor de la universidad bajo `systemd --user`, sin sudo. El
+procedimiento completo —venv, servicios, linger, respaldos y actualización—
+está en [deploy/README.md](deploy/README.md), junto con las dos unidades de
+systemd en uso.
+
+Al iniciar, `init_db()` crea las tablas que falten y aplica migraciones
+idempotentes sobre `users`.
+
+> El `Procfile` de la raíz quedó de un despliegue anterior en PaaS. Hoy no lo
+> usa nadie: el arranque lo define `deploy/vitalis-api.service`.

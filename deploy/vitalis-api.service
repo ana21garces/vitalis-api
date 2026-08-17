@@ -1,0 +1,21 @@
+; Servicio de usuario para la API. Se instala en
+; ~/.config/systemd/user/vitalis-api.service
+;
+; Las rutas son absolutas porque systemd no expande ~ en WorkingDirectory ni
+; en ExecStart. Ajustalas si el usuario o la ubicacion cambian.
+
+[Unit]
+Description=Vitalis API (FastAPI + uvicorn)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ana.garces/univita/vitalis-api
+ExecStart=/home/ana.garces/univita/vitalis-api/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ana.garces/univita/vitalis-api.log
+StandardError=append:/home/ana.garces/univita/vitalis-api.log
+
+[Install]
+WantedBy=default.target

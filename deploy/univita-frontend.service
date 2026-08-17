@@ -1,0 +1,27 @@
+; Servicio de usuario para el frontend Next.js. Se instala en
+; ~/.config/systemd/user/univita-frontend.service
+;
+; El frontend vive en su propio repositorio (UnivitaFrontend); esta unidad se
+; guarda aqui para que el despliegue completo quede documentado en un solo
+; sitio.
+;
+; ExecStart pasa por npx, que es un envoltorio: node lanza npx y npx lanza
+; next. Apuntar directo al binario evita esa capa intermedia y es preferible
+; si alguna vez systemd deja de seguir bien al proceso hijo:
+;   ExecStart=/home/ana.garces/univita/UnivitaFrontend/node_modules/.bin/next start -p 3001
+
+[Unit]
+Description=UniVita Frontend (Next.js)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ana.garces/univita/UnivitaFrontend
+ExecStart=/usr/bin/npx next start -p 3001
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ana.garces/univita/frontend.log
+StandardError=append:/home/ana.garces/univita/frontend.log
+
+[Install]
+WantedBy=default.target
