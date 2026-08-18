@@ -3,6 +3,8 @@ import pytest
 
 REGISTER_URL = "/api/v1/auth/register"
 LOGIN_URL = "/api/v1/auth/login"
+REFRESH_URL = "/api/v1/auth/refresh"
+ESTADO_URL = "/api/v1/encuesta/estado"
 
 VALID_USER = {
     "full_name": "Ana Garcia",
@@ -69,3 +71,64 @@ def test_login_contrasena_incorrecta(client):
 def test_login_usuario_no_existe(client):
     res = client.post(LOGIN_URL, json={"email": "noexiste@vitalis.com", "password": "cualquiera"})
     assert res.status_code == 401
+
+
+def _tokens(client):
+    """Registra al usuario de prueba e inicia sesion. Devuelve los dos tokens."""
+    client.post(REGISTER_URL, json=VALID_USER)
+    res = client.post(LOGIN_URL, json={
+        "email": VALID_USER["email"],
+        "password": VALID_USER["password"],
+    })
+    return res.json()
+
+
+def test_refresh_devuelve_access_token_nuevo(client):
+    tokens = _tokens(client)
+    res = client.post(REFRESH_URL, json={"refresh_token": tokens["refresh_token"]})
+    assert res.status_code == 200
+    assert "access_token" in res.json()
+
+
+def test_refresh_el_access_token_nuevo_sirve(client):
+    tokens = _tokens(client)
+    nuevo = client.post(REFRESH_URL, json={"refresh_token": tokens["refresh_token"]})
+    access = nuevo.json()["access_token"]
+
+    res = client.get(ESTADO_URL, headers={"Authorization": f"Bearer {access}"})
+    assert res.status_code == 200
+
+
+def test_refresh_no_renueva_el_refresh_token(client):
+    """El limite de dias es absoluto: encadenar renovaciones no lo estira."""
+    tokens = _tokens(client)
+    res = client.post(REFRESH_URL, json={"refresh_token": tokens["refresh_token"]})
+    assert res.json()["refresh_token"] == tokens["refresh_token"]
+
+
+def test_refresh_rechaza_un_access_token(client):
+    tokens = _tokens(client)
+    res = client.post(REFRESH_URL, json={"refresh_token": tokens["access_token"]})
+    assert res.status_code == 401
+
+
+def test_refresh_token_ilegible(client):
+    res = client.post(REFRESH_URL, json={"refresh_token": "esto.no.es-un-jwt"})
+    assert res.status_code == 401
+
+
+def test_refresh_usuario_desactivado(client):
+    """Desactivar una cuenta corta la renovacion, no solo el login."""
+    from tests.conftest import TestingSessionLocal
+    from app.models.user import User
+
+    tokens = _tokens(client)
+
+    db = TestingSessionLocal()
+    user = db.query(User).filter(User.email == VALID_USER["email"]).first()
+    user.is_active = False
+    db.commit()
+    db.close()
+
+    res = client.post(REFRESH_URL, json={"refresh_token": tokens["refresh_token"]})
+    assert res.status_code == 403
