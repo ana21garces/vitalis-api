@@ -286,3 +286,7 @@ def obtener_estadisticas_pp(db: Session) -> tuple[dict, list[dict]]:
 
 def obtener_estadisticas_af(db: Session) -> tuple[dict, list[dict]]:
     return obtener_estadisticas_dimension(db, "af")
+
+
+def obtener_estadisticas_rs(db: Session) -> tuple[dict, list[dict]]:
+    return obtener_estadisticas_dimension(db, "rs")
