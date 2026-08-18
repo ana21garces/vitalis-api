@@ -8,8 +8,9 @@ from app.db.base import Base
 from app.core.dependencies import get_db
 from app.models import user as _user_model          # noqa: F401 — registra tabla users
 from app.models import encuesta_hplp as _enc_model  # noqa: F401 — registra tabla encuestas_hplp
+from app.models import notificacion as _notif_model # noqa: F401 — registra tabla notificaciones
 
-_SQLITE_TABLES = ["users", "encuestas_hplp"]
+_SQLITE_TABLES = ["users", "encuestas_hplp", "notificaciones"]
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
 
@@ -37,6 +38,7 @@ def setup_db():
 def limpiar_tablas():
     """Limpia las tablas antes de cada test para garantizar aislamiento."""
     db = TestingSessionLocal()
+    db.execute(text("DELETE FROM notificaciones"))
     db.execute(text("DELETE FROM encuestas_hplp"))
     db.execute(text("DELETE FROM users"))
     db.commit()

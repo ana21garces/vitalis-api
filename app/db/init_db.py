@@ -7,6 +7,7 @@ from app.db.session import engine
 # Sin estos imports, create_all() no crearía nada.
 from app.models.encuesta_hplp import EncuestaHplp  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.notificacion import Notificacion  # noqa: F401
 
 
 def init_db() -> None:

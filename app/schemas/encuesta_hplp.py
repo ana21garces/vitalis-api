@@ -200,6 +200,25 @@ class ResultadosCapellanResponse(BaseModel):
     facultades: List[FacultadGroupPP]
 
 
+class ConteoNivelesPP(BaseModel):
+    pobre: int
+    moderado: int
+    bueno: int
+    excelente: int
+    total: int
+    promedio_indice: float
+
+
+class FacultadEstadisticaPP(BaseModel):
+    facultad: str | None
+    conteo: ConteoNivelesPP
+
+
+class EstadisticasCapellanResponse(BaseModel):
+    poblacion_general: ConteoNivelesPP
+    por_facultad: List[FacultadEstadisticaPP]
+
+
 class RecomendacionesPPResponse(BaseModel):
     usuario_id: str
     nombre: str | None
