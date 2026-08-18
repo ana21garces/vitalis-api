@@ -509,6 +509,27 @@ def resultados_responsabilidad_salud(
     )
 
 
+@router.get("/responsabilidad-salud/resultados/estadisticas", response_model=EstadisticasDimensionResponse)
+def estadisticas_responsabilidad_salud(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el rol de Responsabilidad en Salud.
+    Población general y por facultad en Responsabilidad en Salud, para los
+    gráficos de qué facultades necesitan más atención y cómo está la
+    universidad en conjunto. No admite filtros: es la foto completa.
+    """
+    if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
+        )
+
+    general, facultades = repo.obtener_estadisticas_rs(db)
+    return EstadisticasDimensionResponse(poblacion_general=general, por_facultad=facultades)
+
+
 @router.get("/recomendaciones/responsabilidad-salud", response_model=RecomendacionesRSResponse)
 def recomendaciones_responsabilidad_salud(
     db: Session = Depends(get_db),
