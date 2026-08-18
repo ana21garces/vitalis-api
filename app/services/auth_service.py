@@ -1,11 +1,23 @@
+import uuid
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
+from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, TokenResponse
 from app.schemas.user import UserResponse
 from app.repositories.user_repository import UserRepository
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
+
+REFRESH_INVALIDO = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Token de refresco inválido o expirado",
+)
 
 
 class AuthService:
@@ -64,4 +76,43 @@ class AuthService:
         return TokenResponse(
             access_token=create_access_token(token_data),
             refresh_token=create_refresh_token(token_data),
+        )
+
+    def refresh(self, data: RefreshRequest) -> TokenResponse:
+        """Canjea un refresh token por un access token nuevo.
+
+        El refresh token **no se renueva**: se devuelve el mismo que llegó. Así
+        el límite de REFRESH_TOKEN_EXPIRE_DAYS es absoluto y la sesión no se
+        puede estirar indefinidamente encadenando renovaciones. Pasados esos
+        días hay que volver a autenticarse con contraseña.
+        """
+        payload = decode_token(data.refresh_token)
+
+        # Un access token enviado aquí no sirve: el tipo tiene que ser refresh.
+        # Es la contraparte de la comprobación que hace get_current_user.
+        if not payload or payload.get("type") != "refresh":
+            raise REFRESH_INVALIDO
+
+        try:
+            uid = uuid.UUID(payload.get("sub"))
+        except (ValueError, AttributeError, TypeError):
+            raise REFRESH_INVALIDO
+
+        # Se relee el usuario en vez de confiar en lo que dice el token: si lo
+        # desactivaron o le cambiaron el rol después de iniciar sesión, tiene
+        # que notarse en la siguiente renovación y no dentro de siete días.
+        user = self.repo.get_by_id(uid)
+        if user is None:
+            raise REFRESH_INVALIDO
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cuenta inactiva, contacta al administrador",
+            )
+
+        token_data = {"sub": str(user.id), "email": user.email, "role": user.role}
+        return TokenResponse(
+            access_token=create_access_token(token_data),
+            refresh_token=data.refresh_token,
         )
