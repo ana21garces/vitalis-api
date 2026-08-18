@@ -20,6 +20,7 @@ from app.schemas.encuesta_hplp import (
     CarreraGroupPP,
     FacultadGroupPP,
     ResultadosCapellanResponse,
+    EstadisticasCapellanResponse,
     RecomendacionesPPResponse,
     TarjetaRecomendacion,
     ActividadFisicaItems,
@@ -276,6 +277,27 @@ def resultados_psicologia_positiva(
         total_usuarios=len(filas),
         facultades=facultades_list,
     )
+
+
+@router.get("/capellan/psicologia-positiva/estadisticas", response_model=EstadisticasCapellanResponse)
+def estadisticas_psicologia_positiva(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el capellán.
+    Población general y por facultad en Psicología Positiva, para los
+    gráficos de qué facultades necesitan más atención y cómo está la
+    universidad en conjunto. No admite filtros: es la foto completa.
+    """
+    if current_user.role != UserRole.CAPELLAN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el capellán puede acceder a esta vista",
+        )
+
+    general, facultades = repo.obtener_estadisticas_pp(db)
+    return EstadisticasCapellanResponse(poblacion_general=general, por_facultad=facultades)
 
 
 @router.get("/recomendaciones/psicologia-positiva", response_model=RecomendacionesPPResponse)

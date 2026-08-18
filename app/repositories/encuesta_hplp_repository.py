@@ -228,3 +228,50 @@ def obtener_resultados_pp_todos(
     tipo_usuario: str | None = None,
 ) -> list[tuple[EncuestaHplp, User]]:
     return _base_resultados_query(db, facultad, carrera, tipo_usuario)
+
+
+def _conteo_vacio() -> dict:
+    return {"pobre": 0, "moderado": 0, "bueno": 0, "excelente": 0, "total": 0, "_suma_indice": 0.0}
+
+
+def _cerrar_conteo(c: dict) -> dict:
+    c["promedio_indice"] = round(c["_suma_indice"] / c["total"], 2) if c["total"] else 0.0
+    del c["_suma_indice"]
+    return c
+
+
+def obtener_estadisticas_pp(db: Session) -> tuple[dict, list[dict]]:
+    """Poblacion general y por facultad en Psicologia Positiva.
+
+    Alimenta los graficos de la vista del capellan: sin esto, no hay forma de
+    saber que facultades necesitan mas atencion ni como esta la universidad
+    en conjunto, solo el listado persona por persona.
+
+    Sin filtros a proposito: toma la ultima encuesta de cada usuario con
+    _base_resultados_query, la misma base que ya usan las vistas agrupadas,
+    y agrega en Python porque la poblacion cabe de sobra en memoria.
+    """
+    filas = _base_resultados_query(db, None, None, None)
+
+    general = _conteo_vacio()
+    por_facultad: dict[str | None, dict] = {}
+
+    for encuesta, usuario in filas:
+        nivel = encuesta.pp_nivel.lower()
+        indice = encuesta.pp_indice
+
+        for grupo in (general, por_facultad.setdefault(usuario.facultad, _conteo_vacio())):
+            grupo["total"] += 1
+            grupo["_suma_indice"] += indice
+            if nivel in grupo:
+                grupo[nivel] += 1
+
+    facultades = [
+        {"facultad": fac, "conteo": _cerrar_conteo(c)}
+        for fac, c in por_facultad.items()
+    ]
+    # Peor primero: la facultad con el indice promedio mas bajo es la que
+    # necesita mas atencion.
+    facultades.sort(key=lambda f: f["conteo"]["promedio_indice"])
+
+    return _cerrar_conteo(general), facultades
