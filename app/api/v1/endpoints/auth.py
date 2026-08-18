@@ -24,9 +24,9 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
     """Devuelve un access token nuevo a partir del refresh token del login.
 
-    Hasta ahora el login entregaba un refresh token que no se podía canjear en
-    ninguna parte: a los 30 minutos la sesión moría y había que escribir la
-    contraseña otra vez, aunque fuera en mitad de la encuesta de 52 ítems.
+    El refresh token se devuelve sin cambios: su caducidad es un límite
+    absoluto y no se extiende al renovar. Responde 401 si el token no es de
+    tipo refresh, es ilegible o ha caducado, y 403 si la cuenta está inactiva.
     """
     service = AuthService(db)
     return service.refresh(data)
