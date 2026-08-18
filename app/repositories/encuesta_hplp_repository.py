@@ -240,10 +240,11 @@ def _cerrar_conteo(c: dict) -> dict:
     return c
 
 
-def obtener_estadisticas_pp(db: Session) -> tuple[dict, list[dict]]:
-    """Poblacion general y por facultad en Psicologia Positiva.
+def obtener_estadisticas_dimension(db: Session, prefijo: str) -> tuple[dict, list[dict]]:
+    """Poblacion general y por facultad para una dimension del HPLP-II.
 
-    Alimenta los graficos de la vista del capellan: sin esto, no hay forma de
+    `prefijo` es el prefijo de columna en encuestas_hplp (pp, af, rs...).
+    Alimenta los graficos de las vistas por rol: sin esto, no hay forma de
     saber que facultades necesitan mas atencion ni como esta la universidad
     en conjunto, solo el listado persona por persona.
 
@@ -252,13 +253,15 @@ def obtener_estadisticas_pp(db: Session) -> tuple[dict, list[dict]]:
     y agrega en Python porque la poblacion cabe de sobra en memoria.
     """
     filas = _base_resultados_query(db, None, None, None)
+    campo_nivel = f"{prefijo}_nivel"
+    campo_indice = f"{prefijo}_indice"
 
     general = _conteo_vacio()
     por_facultad: dict[str | None, dict] = {}
 
     for encuesta, usuario in filas:
-        nivel = encuesta.pp_nivel.lower()
-        indice = encuesta.pp_indice
+        nivel = getattr(encuesta, campo_nivel).lower()
+        indice = getattr(encuesta, campo_indice)
 
         for grupo in (general, por_facultad.setdefault(usuario.facultad, _conteo_vacio())):
             grupo["total"] += 1
@@ -275,3 +278,11 @@ def obtener_estadisticas_pp(db: Session) -> tuple[dict, list[dict]]:
     facultades.sort(key=lambda f: f["conteo"]["promedio_indice"])
 
     return _cerrar_conteo(general), facultades
+
+
+def obtener_estadisticas_pp(db: Session) -> tuple[dict, list[dict]]:
+    return obtener_estadisticas_dimension(db, "pp")
+
+
+def obtener_estadisticas_af(db: Session) -> tuple[dict, list[dict]]:
+    return obtener_estadisticas_dimension(db, "af")

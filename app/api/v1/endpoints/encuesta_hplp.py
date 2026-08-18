@@ -20,7 +20,7 @@ from app.schemas.encuesta_hplp import (
     CarreraGroupPP,
     FacultadGroupPP,
     ResultadosCapellanResponse,
-    EstadisticasCapellanResponse,
+    EstadisticasDimensionResponse,
     RecomendacionesPPResponse,
     TarjetaRecomendacion,
     ActividadFisicaItems,
@@ -279,7 +279,7 @@ def resultados_psicologia_positiva(
     )
 
 
-@router.get("/capellan/psicologia-positiva/estadisticas", response_model=EstadisticasCapellanResponse)
+@router.get("/capellan/psicologia-positiva/estadisticas", response_model=EstadisticasDimensionResponse)
 def estadisticas_psicologia_positiva(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -297,7 +297,7 @@ def estadisticas_psicologia_positiva(
         )
 
     general, facultades = repo.obtener_estadisticas_pp(db)
-    return EstadisticasCapellanResponse(poblacion_general=general, por_facultad=facultades)
+    return EstadisticasDimensionResponse(poblacion_general=general, por_facultad=facultades)
 
 
 @router.get("/recomendaciones/psicologia-positiva", response_model=RecomendacionesPPResponse)
@@ -393,6 +393,27 @@ def resultados_actividad_fisica(
         total_usuarios=len(filas),
         facultades=facultades_list,
     )
+
+
+@router.get("/actividad-fisica/resultados/estadisticas", response_model=EstadisticasDimensionResponse)
+def estadisticas_actividad_fisica(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el rol de Actividad Física.
+    Población general y por facultad en Actividad Física, para los
+    gráficos de qué facultades necesitan más atención y cómo está la
+    universidad en conjunto. No admite filtros: es la foto completa.
+    """
+    if current_user.role != UserRole.ACTIVIDAD_FISICA:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Actividad Física puede acceder a esta vista",
+        )
+
+    general, facultades = repo.obtener_estadisticas_af(db)
+    return EstadisticasDimensionResponse(poblacion_general=general, por_facultad=facultades)
 
 
 @router.get("/recomendaciones/actividad-fisica", response_model=RecomendacionesAFResponse)
