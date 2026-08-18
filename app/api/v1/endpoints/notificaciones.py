@@ -12,10 +12,9 @@ from app.schemas.notificacion import NotificacionCreate, NotificacionResponse
 router = APIRouter(prefix="/notificaciones", tags=["Notificaciones"])
 
 # Roles que pueden invitar a un estudiante a agendar una cita desde su vista
-# de resultados. Hoy solo el capellán tiene esa vista construida; se declara
-# como conjunto para que sumar actividad física o responsabilidad en salud
-# más adelante no toque esta comprobación.
-ROLES_QUE_NOTIFICAN = {UserRole.CAPELLAN}
+# de resultados. Se declara como conjunto para que sumar responsabilidad en
+# salud más adelante no toque esta comprobación.
+ROLES_QUE_NOTIFICAN = {UserRole.CAPELLAN, UserRole.ACTIVIDAD_FISICA}
 
 
 @router.post("", response_model=NotificacionResponse, status_code=status.HTTP_201_CREATED)

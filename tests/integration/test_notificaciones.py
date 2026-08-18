@@ -41,15 +41,25 @@ def test_estudiante_no_puede_notificar(client, auth_headers):
     assert res.status_code == 403
 
 
-def test_rol_no_autorizado_no_puede_notificar(client, act_fisica_headers, auth_headers):
-    """actividad_fisica todavía no tiene vista de resultados ni entra en
-    ROLES_QUE_NOTIFICAN, aunque sea un rol profesional."""
+def test_rol_no_autorizado_no_puede_notificar(client, resp_salud_headers, auth_headers):
+    """responsabilidad_salud todavía no tiene esta acción habilitada, aunque
+    sea un rol profesional con vista de resultados propia."""
     res = client.post(
         NOTIF_URL,
         json={"destinatario_id": _mi_id(client, auth_headers), "mensaje": "hola"},
-        headers=act_fisica_headers,
+        headers=resp_salud_headers,
     )
     assert res.status_code == 403
+
+
+def test_actividad_fisica_notifica_a_un_estudiante(client, act_fisica_headers, auth_headers):
+    res = client.post(
+        NOTIF_URL,
+        json={"destinatario_id": _mi_id(client, auth_headers), "mensaje": "Agenda una cita con actividad física."},
+        headers=act_fisica_headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["remitente_nombre"] == "Act Fisica Test"
 
 
 def test_no_se_puede_notificar_a_un_profesional(client, capellan_headers, act_fisica_headers):

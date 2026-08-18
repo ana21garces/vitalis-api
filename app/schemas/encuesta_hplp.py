@@ -200,7 +200,7 @@ class ResultadosCapellanResponse(BaseModel):
     facultades: List[FacultadGroupPP]
 
 
-class ConteoNivelesPP(BaseModel):
+class ConteoNiveles(BaseModel):
     pobre: int
     moderado: int
     bueno: int
@@ -209,14 +209,18 @@ class ConteoNivelesPP(BaseModel):
     promedio_indice: float
 
 
-class FacultadEstadisticaPP(BaseModel):
+class FacultadEstadistica(BaseModel):
     facultad: str | None
-    conteo: ConteoNivelesPP
+    conteo: ConteoNiveles
 
 
-class EstadisticasCapellanResponse(BaseModel):
-    poblacion_general: ConteoNivelesPP
-    por_facultad: List[FacultadEstadisticaPP]
+class EstadisticasDimensionResponse(BaseModel):
+    """Poblacion general y por facultad para una dimension del HPLP-II.
+    Nombre generico porque la usan las vistas de capellan, actividad fisica
+    y, cuando exista, responsabilidad en salud: la forma es identica.
+    """
+    poblacion_general: ConteoNiveles
+    por_facultad: List[FacultadEstadistica]
 
 
 class RecomendacionesPPResponse(BaseModel):
