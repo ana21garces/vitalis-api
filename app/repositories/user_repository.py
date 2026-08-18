@@ -23,3 +23,6 @@ class UserRepository:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def count(self) -> int:
+        return self.db.query(User).count()
