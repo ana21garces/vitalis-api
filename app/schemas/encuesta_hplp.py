@@ -346,6 +346,60 @@ class RecomendacionesRSResponse(BaseModel):
     tarjetas: List[TarjetaRecomendacion]
 
 
+# ── Vista Relaciones Interpersonales ──────────────────────────────────────────
+
+class RelacionesInterpersonalesItems(BaseModel):
+    ri_item_01: int
+    ri_item_07: int
+    ri_item_13: int
+    ri_item_20: int
+    ri_item_26: int
+    ri_item_32: int
+    ri_item_38: int
+    ri_item_45: int
+    ri_item_50: int
+    ri_indice: float
+    ri_nivel: str
+
+
+class ResultadoRIItem(BaseModel):
+    encuesta_id: int
+    usuario_id: str
+    nombre: str
+    facultad: str | None
+    programa: str | None
+    tipo_usuario: str | None
+    universidad: str | None
+    fecha: datetime
+    relaciones_interpersonales: RelacionesInterpersonalesItems
+
+
+class CarreraGroupRI(BaseModel):
+    carrera: str | None
+    total: int
+    usuarios: List[ResultadoRIItem]
+
+
+class FacultadGroupRI(BaseModel):
+    facultad: str | None
+    total: int
+    carreras: List[CarreraGroupRI]
+
+
+class ResultadosRIResponse(BaseModel):
+    total_usuarios: int
+    facultades: List[FacultadGroupRI]
+
+
+class RecomendacionesRIResponse(BaseModel):
+    usuario_id: str
+    nombre: str | None
+    ri_nivel: str
+    ri_indice: float
+    total_tarjetas: int
+    tarjetas: List[TarjetaRecomendacion]
+
+
 # ── Vista Nutrición ────────────────────────────────────────────────────────
 
 class NutricionItems(BaseModel):
