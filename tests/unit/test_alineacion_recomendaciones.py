@@ -12,6 +12,7 @@ from app.services import (
     recomendaciones_af_service,
     recomendaciones_pp_service,
     recomendaciones_rs_service,
+    recomendaciones_ri_service,
 )
 from app.services.encuesta_hplp_service import SUBSCALES_HPLP2
 
@@ -19,6 +20,7 @@ SERVICIOS_POR_DIMENSION = [
     ("psicologia_positiva", recomendaciones_pp_service),
     ("actividad_fisica", recomendaciones_af_service),
     ("responsabilidad_salud", recomendaciones_rs_service),
+    ("relaciones_interpersonales", recomendaciones_ri_service),
 ]
 
 
