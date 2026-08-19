@@ -10,6 +10,7 @@ import pytest
 
 from app.services import (
     recomendaciones_af_service,
+    recomendaciones_me_service,
     recomendaciones_pp_service,
     recomendaciones_rs_service,
 )
@@ -19,6 +20,7 @@ SERVICIOS_POR_DIMENSION = [
     ("psicologia_positiva", recomendaciones_pp_service),
     ("actividad_fisica", recomendaciones_af_service),
     ("responsabilidad_salud", recomendaciones_rs_service),
+    ("manejo_estres", recomendaciones_me_service),
 ]
 
 
