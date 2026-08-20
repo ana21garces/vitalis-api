@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models.user import User
+from app.models.user import User, UserRole
 
 
 class UserRepository:
@@ -26,3 +26,11 @@ class UserRepository:
 
     def count(self) -> int:
         return self.db.query(User).count()
+
+    def listar(self) -> list[User]:
+        """Todos los usuarios, del más reciente al más antiguo."""
+        return self.db.query(User).order_by(User.created_at.desc()).all()
+
+    def contar_admins(self) -> int:
+        """Cuántos administradores hay. Sirve para no quedarse sin ninguno."""
+        return self.db.query(User).filter(User.role == UserRole.ADMIN.value).count()
