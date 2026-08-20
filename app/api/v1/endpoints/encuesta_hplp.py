@@ -47,12 +47,19 @@ from app.schemas.encuesta_hplp import (
     FacultadGroupME,
     ResultadosMEResponse,
     RecomendacionesMEResponse,
+    NutricionItems,
+    ResultadoNutricionItem,
+    CarreraGroupN,
+    FacultadGroupN,
+    ResultadosNutricionResponse,
+    RecomendacionesNResponse,
 )
 from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
 from app.services.recomendaciones_af_service import obtener_recomendaciones_af
 from app.services.recomendaciones_rs_service import obtener_recomendaciones_rs
 from app.services.recomendaciones_ri_service import obtener_recomendaciones_ri
 from app.services.recomendaciones_me_service import obtener_recomendaciones_me
+from app.services.recomendaciones_n_service import obtener_recomendaciones_n
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
 from app.repositories import encuesta_hplp_repository as repo
@@ -809,6 +816,123 @@ def recomendaciones_manejo_estres(
     )
 
 
+@router.get("/nutricion/resultados", response_model=ResultadosNutricionResponse)
+def resultados_nutricion(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    carrera: Optional[str] = Query(None, description="Filtrar por carrera/programa"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo: estudiante, docente, administrativo"),
+):
+    """
+    Vista exclusiva para el rol de Nutrición.
+    Devuelve resultados agrupados por facultad y carrera.
+    Acepta filtros opcionales: facultad, carrera, tipo_usuario.
+    """
+    if current_user.role != UserRole.NUTRICION:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Nutrición puede acceder a esta vista",
+        )
+
+    filas = repo.obtener_resultados_n_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+
+    por_facultad: dict[str | None, dict[str | None, list[ResultadoNutricionItem]]] = {}
+    for encuesta, usuario in filas:
+        item = ResultadoNutricionItem(
+            encuesta_id=encuesta.id,
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            facultad=usuario.facultad,
+            programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
+            universidad=usuario.university,
+            fecha=encuesta.fecha_respuesta,
+            nutricion=NutricionItems(
+                n_item_02=encuesta.n_item_02,
+                n_item_08=encuesta.n_item_08,
+                n_item_14=encuesta.n_item_14,
+                n_item_21=encuesta.n_item_21,
+                n_item_27=encuesta.n_item_27,
+                n_item_33=encuesta.n_item_33,
+                n_item_39=encuesta.n_item_39,
+                n_item_40=encuesta.n_item_40,
+                n_item_46=encuesta.n_item_46,
+                n_item_51=encuesta.n_item_51,
+                n_indice=encuesta.n_indice,
+                n_nivel=encuesta.n_nivel,
+            ),
+        )
+        por_facultad.setdefault(usuario.facultad, {}).setdefault(usuario.program, []).append(item)
+
+    facultades_list = [
+        FacultadGroupN(
+            facultad=fac,
+            total=sum(len(v) for v in carreras.values()),
+            carreras=[
+                CarreraGroupN(carrera=car, total=len(usuarios), usuarios=usuarios)
+                for car, usuarios in carreras.items()
+            ],
+        )
+        for fac, carreras in por_facultad.items()
+    ]
+
+    return ResultadosNutricionResponse(
+        total_usuarios=len(filas),
+        facultades=facultades_list,
+    )
+
+
+@router.get("/nutricion/resultados/estadisticas", response_model=EstadisticasDimensionResponse)
+def estadisticas_nutricion(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el rol de Nutrición.
+    Población general y por facultad en Nutrición, para los gráficos de
+    qué facultades necesitan más atención y cómo está la universidad en
+    conjunto. No admite filtros: es la foto completa.
+    """
+    if current_user.role != UserRole.NUTRICION:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Nutrición puede acceder a esta vista",
+        )
+
+    general, facultades = repo.obtener_estadisticas_n(db)
+    return EstadisticasDimensionResponse(poblacion_general=general, por_facultad=facultades)
+
+
+@router.get("/recomendaciones/nutricion", response_model=RecomendacionesNResponse)
+def recomendaciones_nutricion(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Devuelve el plan de recomendaciones de Nutrición para el usuario
+    autenticado. Solo genera tarjetas para niveles POBRE y MODERADO.
+    Requiere haber completado la encuesta.
+    """
+    ultimo = repo.obtener_ultimo(db, current_user.id)
+    if not ultimo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El usuario aún no ha completado la encuesta",
+        )
+
+    tarjetas = obtener_recomendaciones_n(ultimo)
+
+    return RecomendacionesNResponse(
+        usuario_id=str(current_user.id),
+        nombre=current_user.full_name,
+        n_nivel=ultimo.n_nivel,
+        n_indice=ultimo.n_indice,
+        total_tarjetas=len(tarjetas),
+        tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
+    )
+
+
 @router.get("/admin/resumen", response_model=ResumenAdminResponse)
 def resumen_admin(
     db: Session = Depends(get_db),
@@ -847,6 +971,7 @@ def opciones_filtros(
         UserRole.HEALTH_MANAGER,
         UserRole.RELACIONES_INTERPERSONALES,
         UserRole.MANEJO_ESTRES,
+        UserRole.NUTRICION,
     }
     if current_user.role not in roles_permitidos:
         raise HTTPException(

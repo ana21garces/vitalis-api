@@ -38,6 +38,9 @@ USUARIOS_PROFESIONALES = {
     UserRole.MANEJO_ESTRES.value: (
         "manejoestres@vitalis.com", "Profesional Manejo del Estres",
     ),
+    UserRole.NUTRICION.value: (
+        "nutricion@vitalis.com", "Profesional Nutricion",
+    ),
 }
 
 # El id y las fechas se generan en Python a proposito, no con gen_random_uuid()

@@ -451,3 +451,58 @@ class RecomendacionesRIResponse(BaseModel):
     ri_indice: float
     total_tarjetas: int
     tarjetas: List[TarjetaRecomendacion]
+
+
+# ── Vista Nutrición ────────────────────────────────────────────────────────
+
+class NutricionItems(BaseModel):
+    n_item_02: int
+    n_item_08: int
+    n_item_14: int
+    n_item_21: int
+    n_item_27: int
+    n_item_33: int
+    n_item_39: int
+    n_item_40: int
+    n_item_46: int
+    n_item_51: int
+    n_indice: float
+    n_nivel: str
+
+
+class ResultadoNutricionItem(BaseModel):
+    encuesta_id: int
+    usuario_id: str
+    nombre: str
+    facultad: str | None
+    programa: str | None
+    tipo_usuario: str | None
+    universidad: str | None
+    fecha: datetime
+    nutricion: NutricionItems
+
+
+class CarreraGroupN(BaseModel):
+    carrera: str | None
+    total: int
+    usuarios: List[ResultadoNutricionItem]
+
+
+class FacultadGroupN(BaseModel):
+    facultad: str | None
+    total: int
+    carreras: List[CarreraGroupN]
+
+
+class ResultadosNutricionResponse(BaseModel):
+    total_usuarios: int
+    facultades: List[FacultadGroupN]
+
+
+class RecomendacionesNResponse(BaseModel):
+    usuario_id: str
+    nombre: str | None
+    n_nivel: str
+    n_indice: float
+    total_tarjetas: int
+    tarjetas: List[TarjetaRecomendacion]
