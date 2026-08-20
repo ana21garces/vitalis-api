@@ -337,6 +337,59 @@ class ResultadosRespSaludResponse(BaseModel):
     facultades: List[FacultadGroupRS]
 
 
+# ── Vista Manejo del Estrés ───────────────────────────────────────────────────
+
+class ManejoEstresItems(BaseModel):
+    me_item_05: int
+    me_item_11: int
+    me_item_18: int
+    me_item_24: int
+    me_item_30: int
+    me_item_36: int
+    me_item_43: int
+    me_item_48: int
+    me_indice: float
+    me_nivel: str
+
+
+class ResultadoMEItem(BaseModel):
+    encuesta_id: int
+    usuario_id: str
+    nombre: str
+    facultad: str | None
+    programa: str | None
+    tipo_usuario: str | None
+    universidad: str | None
+    fecha: datetime
+    manejo_estres: ManejoEstresItems
+
+
+class CarreraGroupME(BaseModel):
+    carrera: str | None
+    total: int
+    usuarios: List[ResultadoMEItem]
+
+
+class FacultadGroupME(BaseModel):
+    facultad: str | None
+    total: int
+    carreras: List[CarreraGroupME]
+
+
+class ResultadosMEResponse(BaseModel):
+    total_usuarios: int
+    facultades: List[FacultadGroupME]
+
+
+class RecomendacionesMEResponse(BaseModel):
+    usuario_id: str
+    nombre: str | None
+    me_nivel: str
+    me_indice: float
+    total_tarjetas: int
+    tarjetas: List[TarjetaRecomendacion]
+
+
 class RecomendacionesRSResponse(BaseModel):
     usuario_id: str
     nombre: str | None
