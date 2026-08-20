@@ -1,7 +1,16 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_db
-from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, TokenResponse
+from app.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    VerificarCorreoRequest,
+    VerificarCorreoResponse,
+    RestablecerClaveRequest,
+    RestablecerClaveResponse,
+)
 from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
 
@@ -30,3 +39,17 @@ def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
     """
     service = AuthService(db)
     return service.refresh(data)
+
+
+@router.post("/verificar-correo", response_model=VerificarCorreoResponse, status_code=status.HTTP_200_OK)
+def verificar_correo(data: VerificarCorreoRequest, db: Session = Depends(get_db)):
+    """Indica si existe una cuenta con el correo dado (paso 1 de la recuperación)."""
+    existe = AuthService(db).verificar_correo(data.email)
+    return VerificarCorreoResponse(existe=existe)
+
+
+@router.post("/restablecer-clave", response_model=RestablecerClaveResponse, status_code=status.HTTP_200_OK)
+def restablecer_clave(data: RestablecerClaveRequest, db: Session = Depends(get_db)):
+    """Restablece la contraseña de una cuenta existente (paso 2 de la recuperación)."""
+    AuthService(db).restablecer_clave(data)
+    return RestablecerClaveResponse(message="Contraseña actualizada correctamente")
