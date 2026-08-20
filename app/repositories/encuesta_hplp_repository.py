@@ -182,7 +182,6 @@ def obtener_resumen_admin(db: Session) -> dict:
         UserRole.CAPELLAN.value,
         UserRole.ACTIVIDAD_FISICA.value,
         UserRole.RESPONSABILIDAD_SALUD.value,
-        UserRole.HEALTH_MANAGER.value,
         UserRole.RELACIONES_INTERPERSONALES.value,
     ]
 
@@ -237,6 +236,17 @@ def obtener_resultados_pp_todos(
     carrera: str | None = None,
     tipo_usuario: str | None = None,
 ) -> list[tuple[EncuestaHplp, User]]:
+    return _base_resultados_query(db, facultad, carrera, tipo_usuario)
+
+
+def obtener_perfiles_todos(
+    db: Session,
+    facultad: str | None = None,
+    carrera: str | None = None,
+    tipo_usuario: str | None = None,
+) -> list[tuple[EncuestaHplp, User]]:
+    """Última encuesta de cada usuario, con el usuario, para la vista de admin
+    de perfiles de salud (todas las dimensiones)."""
     return _base_resultados_query(db, facultad, carrera, tipo_usuario)
 
 

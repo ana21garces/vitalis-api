@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, requiere_admin
 from app.models.user import User
 from app.schemas.encuesta_hplp import (
     EncuestaCreate,
@@ -15,6 +15,8 @@ from app.schemas.encuesta_hplp import (
     ResetearResponse,
     OpcionesFiltrosResponse,
     ResumenAdminResponse,
+    PerfilSaludItem,
+    PerfilesSaludResponse,
     PsicologiaPositivaItems,
     ResultadoCapellanItem,
     CarreraGroupPP,
@@ -232,7 +234,7 @@ def resultados_psicologia_positiva(
     Devuelve resultados de Psicología Positiva agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.CAPELLAN:
+    if current_user.role not in (UserRole.CAPELLAN, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el capellán puede acceder a esta vista",
@@ -297,7 +299,7 @@ def estadisticas_psicologia_positiva(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.CAPELLAN:
+    if current_user.role not in (UserRole.CAPELLAN, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el capellán puede acceder a esta vista",
@@ -349,7 +351,7 @@ def resultados_actividad_fisica(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.ACTIVIDAD_FISICA:
+    if current_user.role not in (UserRole.ACTIVIDAD_FISICA, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Actividad Física puede acceder a esta vista",
@@ -413,7 +415,7 @@ def estadisticas_actividad_fisica(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.ACTIVIDAD_FISICA:
+    if current_user.role not in (UserRole.ACTIVIDAD_FISICA, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Actividad Física puede acceder a esta vista",
@@ -465,7 +467,7 @@ def resultados_responsabilidad_salud(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
+    if current_user.role not in (UserRole.RESPONSABILIDAD_SALUD, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
@@ -527,7 +529,7 @@ def estadisticas_responsabilidad_salud(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
+    if current_user.role not in (UserRole.RESPONSABILIDAD_SALUD, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
@@ -579,7 +581,7 @@ def resultados_relaciones_interpersonales(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.RELACIONES_INTERPERSONALES:
+    if current_user.role not in (UserRole.RELACIONES_INTERPERSONALES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Relaciones Interpersonales puede acceder a esta vista",
@@ -643,7 +645,7 @@ def estadisticas_relaciones_interpersonales(
     los gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.RELACIONES_INTERPERSONALES:
+    if current_user.role not in (UserRole.RELACIONES_INTERPERSONALES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Relaciones Interpersonales puede acceder a esta vista",
@@ -694,7 +696,7 @@ def resumen_admin(
     Vista exclusiva para el administrador.
     Devuelve totales: usuarios registrados, que completaron la encuesta HPLP,
     sin completar y tasa de participación.
-    Solo cuenta usuarios con rol student/health_manager (excluye profesionales y admin).
+    Solo cuenta usuarios con rol student (excluye cuentas profesionales y admin).
     """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
@@ -702,6 +704,36 @@ def resumen_admin(
             detail="Solo los administradores pueden acceder a este resumen",
         )
     return repo.obtener_resumen_admin(db)
+
+
+@router.get("/perfiles", response_model=PerfilesSaludResponse)
+def perfiles_salud(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(requiere_admin),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo de usuario"),
+):
+    """Perfiles de bienestar de todos los usuarios que respondieron la encuesta.
+
+    Vista del administrador: por cada usuario, su última encuesta con las 6
+    dimensiones PEPS II y el índice/nivel global. Reutiliza la misma consulta
+    base que las vistas por rol (última encuesta de cada usuario).
+    """
+    filas = repo.obtener_perfiles_todos(db, facultad=facultad, tipo_usuario=tipo_usuario)
+    perfiles = [
+        PerfilSaludItem(
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            email=usuario.email,
+            facultad=usuario.facultad,
+            programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
+            fecha=encuesta.fecha_respuesta,
+            resultados=_build_resultados(encuesta),
+        )
+        for encuesta, usuario in filas
+    ]
+    return PerfilesSaludResponse(total=len(perfiles), perfiles=perfiles)
 
 
 @router.get("/filtros/opciones", response_model=OpcionesFiltrosResponse)
@@ -720,7 +752,6 @@ def opciones_filtros(
         UserRole.CAPELLAN,
         UserRole.ACTIVIDAD_FISICA,
         UserRole.RESPONSABILIDAD_SALUD,
-        UserRole.HEALTH_MANAGER,
         UserRole.RELACIONES_INTERPERSONALES,
     }
     if current_user.role not in roles_permitidos:

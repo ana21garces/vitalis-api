@@ -105,6 +105,22 @@ class EncuestaResponse(BaseModel):
     resultados: ResultadosEncuesta
 
 
+class PerfilSaludItem(BaseModel):
+    usuario_id: str
+    nombre: str
+    email: str
+    facultad: str | None
+    programa: str | None
+    tipo_usuario: str | None
+    fecha: datetime
+    resultados: ResultadosEncuesta
+
+
+class PerfilesSaludResponse(BaseModel):
+    total: int
+    perfiles: List[PerfilSaludItem]
+
+
 class EncuestaHistorialItem(BaseModel):
     encuesta_id: int
     fecha: datetime
