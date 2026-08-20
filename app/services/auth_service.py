@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, TokenResponse
+from app.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    RefreshRequest,
+    RestablecerClaveRequest,
+    TokenResponse,
+)
 from app.schemas.user import UserResponse
 from app.repositories.user_repository import UserRepository
 from app.core.security import (
@@ -116,3 +122,23 @@ class AuthService:
             access_token=create_access_token(token_data),
             refresh_token=data.refresh_token,
         )
+
+    def verificar_correo(self, email: str) -> bool:
+        """Indica si existe una cuenta con ese correo (paso 1 de la recuperación)."""
+        return self.repo.get_by_email(email) is not None
+
+    def restablecer_clave(self, data: RestablecerClaveRequest) -> None:
+        """Restablece la contraseña de una cuenta existente por su correo.
+
+        Flujo simplificado (sin verificación por correo): valida que la cuenta
+        exista y guarda el nuevo hash. Queda preparado para sustituirse por un
+        esquema con código enviado al correo como mejora posterior.
+        """
+        user = self.repo.get_by_email(data.email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No existe una cuenta con ese correo",
+            )
+        user.password_hash = hash_password(data.new_password)
+        self.repo.update(user)

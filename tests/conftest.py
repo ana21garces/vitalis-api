@@ -163,6 +163,34 @@ def resp_salud_headers(client, resp_salud_user):
 
 
 @pytest.fixture()
+def ri_user(client):
+    payload = {
+        "full_name": "Relaciones Interpersonales Test",
+        "email": "relinterpersonales@vitalis.com",
+        "password": "password123",
+        "confirm_password": "password123",
+    }
+    client.post("/api/v1/auth/register", json=payload)
+    db = TestingSessionLocal()
+    from app.models.user import User, UserRole
+    user = db.query(User).filter(User.email == payload["email"]).first()
+    user.role = UserRole.RELACIONES_INTERPERSONALES
+    db.commit()
+    db.close()
+    return payload
+
+
+@pytest.fixture()
+def ri_headers(client, ri_user):
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"email": ri_user["email"], "password": ri_user["password"]},
+    )
+    token = res.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
 def manejo_estres_user(client):
     payload = {
         "full_name": "Manejo Estres Test",

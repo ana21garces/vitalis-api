@@ -32,6 +32,9 @@ USUARIOS_PROFESIONALES = {
     UserRole.RESPONSABILIDAD_SALUD.value: (
         "respsalud@vitalis.com", "Profesional Responsabilidad en Salud",
     ),
+    UserRole.RELACIONES_INTERPERSONALES.value: (
+        "relinterpersonales@vitalis.com", "Profesional Relaciones Interpersonales",
+    ),
     UserRole.MANEJO_ESTRES.value: (
         "manejoestres@vitalis.com", "Profesional Manejo del Estres",
     ),
