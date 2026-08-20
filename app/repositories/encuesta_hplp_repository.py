@@ -184,6 +184,7 @@ def obtener_resumen_admin(db: Session) -> dict:
         UserRole.RESPONSABILIDAD_SALUD.value,
         UserRole.HEALTH_MANAGER.value,
         UserRole.RELACIONES_INTERPERSONALES.value,
+        UserRole.MANEJO_ESTRES.value,
         UserRole.NUTRICION.value,
     ]
 
@@ -215,6 +216,15 @@ def obtener_resultados_rs_todos(
 
 
 def obtener_resultados_ri_todos(
+    db: Session,
+    facultad: str | None = None,
+    carrera: str | None = None,
+    tipo_usuario: str | None = None,
+) -> list[tuple[EncuestaHplp, User]]:
+    return _base_resultados_query(db, facultad, carrera, tipo_usuario)
+
+
+def obtener_resultados_me_todos(
     db: Session,
     facultad: str | None = None,
     carrera: str | None = None,
@@ -314,6 +324,10 @@ def obtener_estadisticas_rs(db: Session) -> tuple[dict, list[dict]]:
 
 def obtener_estadisticas_ri(db: Session) -> tuple[dict, list[dict]]:
     return obtener_estadisticas_dimension(db, "ri")
+
+
+def obtener_estadisticas_me(db: Session) -> tuple[dict, list[dict]]:
+    return obtener_estadisticas_dimension(db, "me")
 
 
 def obtener_estadisticas_n(db: Session) -> tuple[dict, list[dict]]:

@@ -41,6 +41,12 @@ from app.schemas.encuesta_hplp import (
     FacultadGroupRI,
     ResultadosRIResponse,
     RecomendacionesRIResponse,
+    ManejoEstresItems,
+    ResultadoMEItem,
+    CarreraGroupME,
+    FacultadGroupME,
+    ResultadosMEResponse,
+    RecomendacionesMEResponse,
     NutricionItems,
     ResultadoNutricionItem,
     CarreraGroupN,
@@ -52,6 +58,7 @@ from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
 from app.services.recomendaciones_af_service import obtener_recomendaciones_af
 from app.services.recomendaciones_rs_service import obtener_recomendaciones_rs
 from app.services.recomendaciones_ri_service import obtener_recomendaciones_ri
+from app.services.recomendaciones_me_service import obtener_recomendaciones_me
 from app.services.recomendaciones_n_service import obtener_recomendaciones_n
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
@@ -692,6 +699,123 @@ def recomendaciones_relaciones_interpersonales(
     )
 
 
+@router.get("/manejo-estres/resultados", response_model=ResultadosMEResponse)
+def resultados_manejo_estres(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    carrera: Optional[str] = Query(None, description="Filtrar por carrera/programa"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo: estudiante, docente, administrativo"),
+):
+    """
+    Vista exclusiva para el rol de Manejo del Estrés.
+    Devuelve resultados agrupados por facultad y carrera.
+    Acepta filtros opcionales: facultad, carrera, tipo_usuario.
+    """
+    if current_user.role != UserRole.MANEJO_ESTRES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Manejo del Estrés puede acceder a esta vista",
+        )
+
+    filas = repo.obtener_resultados_me_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+
+    por_facultad: dict[str | None, dict[str | None, list[ResultadoMEItem]]] = {}
+    for encuesta, usuario in filas:
+        item = ResultadoMEItem(
+            encuesta_id=encuesta.id,
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            facultad=usuario.facultad,
+            programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
+            universidad=usuario.university,
+            fecha=encuesta.fecha_respuesta,
+            manejo_estres=ManejoEstresItems(
+                me_item_05=encuesta.me_item_05,
+                me_item_11=encuesta.me_item_11,
+                me_item_18=encuesta.me_item_18,
+                me_item_24=encuesta.me_item_24,
+                me_item_30=encuesta.me_item_30,
+                me_item_36=encuesta.me_item_36,
+                me_item_43=encuesta.me_item_43,
+                me_item_48=encuesta.me_item_48,
+                me_indice=encuesta.me_indice,
+                me_nivel=encuesta.me_nivel,
+            ),
+        )
+        por_facultad.setdefault(usuario.facultad, {}).setdefault(usuario.program, []).append(item)
+
+    facultades_list = [
+        FacultadGroupME(
+            facultad=fac,
+            total=sum(len(v) for v in carreras.values()),
+            carreras=[
+                CarreraGroupME(carrera=car, total=len(usuarios), usuarios=usuarios)
+                for car, usuarios in carreras.items()
+            ],
+        )
+        for fac, carreras in por_facultad.items()
+    ]
+
+    return ResultadosMEResponse(
+        total_usuarios=len(filas),
+        facultades=facultades_list,
+    )
+
+
+@router.get("/manejo-estres/resultados/estadisticas", response_model=EstadisticasDimensionResponse)
+def estadisticas_manejo_estres(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vista exclusiva para el rol de Manejo del Estrés.
+    Población general y por facultad en Manejo del Estrés, para los
+    gráficos de qué facultades necesitan más atención y cómo está la
+    universidad en conjunto. No admite filtros: es la foto completa.
+    """
+    if current_user.role != UserRole.MANEJO_ESTRES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional de Manejo del Estrés puede acceder a esta vista",
+        )
+
+    general, facultades = repo.obtener_estadisticas_me(db)
+    return EstadisticasDimensionResponse(poblacion_general=general, por_facultad=facultades)
+
+
+@router.get("/recomendaciones/manejo-estres", response_model=RecomendacionesMEResponse)
+def recomendaciones_manejo_estres(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Devuelve el plan de recomendaciones de Manejo del Estrés para el usuario autenticado.
+    Solo genera tarjetas para niveles POBRE y MODERADO. Requiere haber completado la encuesta.
+
+    Contenido pendiente de validación por el equipo de psicología (ver
+    app/services/recomendaciones_me_service.py).
+    """
+    ultimo = repo.obtener_ultimo(db, current_user.id)
+    if not ultimo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El usuario aún no ha completado la encuesta",
+        )
+
+    tarjetas = obtener_recomendaciones_me(ultimo)
+
+    return RecomendacionesMEResponse(
+        usuario_id=str(current_user.id),
+        nombre=current_user.full_name,
+        me_nivel=ultimo.me_nivel,
+        me_indice=ultimo.me_indice,
+        total_tarjetas=len(tarjetas),
+        tarjetas=[TarjetaRecomendacion(**t) for t in tarjetas],
+    )
+
+
 @router.get("/nutricion/resultados", response_model=ResultadosNutricionResponse)
 def resultados_nutricion(
     db: Session = Depends(get_db),
@@ -846,6 +970,7 @@ def opciones_filtros(
         UserRole.RESPONSABILIDAD_SALUD,
         UserRole.HEALTH_MANAGER,
         UserRole.RELACIONES_INTERPERSONALES,
+        UserRole.MANEJO_ESTRES,
         UserRole.NUTRICION,
     }
     if current_user.role not in roles_permitidos:

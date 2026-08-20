@@ -71,6 +71,16 @@ def test_relaciones_interpersonales_notifica_a_un_estudiante(client, ri_headers,
     assert res.json()["remitente_nombre"] == "Relaciones Interpersonales Test"
 
 
+def test_manejo_estres_notifica_a_un_estudiante(client, manejo_estres_headers, auth_headers):
+    res = client.post(
+        NOTIF_URL,
+        json={"destinatario_id": _mi_id(client, auth_headers), "mensaje": "Agenda una cita con manejo del estrés."},
+        headers=manejo_estres_headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["remitente_nombre"] == "Manejo Estres Test"
+
+
 def test_nutricion_notifica_a_un_estudiante(client, n_headers, auth_headers):
     res = client.post(
         NOTIF_URL,
