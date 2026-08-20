@@ -42,3 +42,35 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class VerificarCorreoRequest(BaseModel):
+    email: EmailStr
+
+
+class VerificarCorreoResponse(BaseModel):
+    existe: bool
+
+
+class RestablecerClaveRequest(BaseModel):
+    email: EmailStr
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("La contraseña debe tener mínimo 8 caracteres")
+        return v
+
+    @field_validator("confirm_password")
+    @classmethod
+    def passwords_match(cls, v, info):
+        if "new_password" in info.data and v != info.data["new_password"]:
+            raise ValueError("Las contraseñas no coinciden")
+        return v
+
+
+class RestablecerClaveResponse(BaseModel):
+    message: str
