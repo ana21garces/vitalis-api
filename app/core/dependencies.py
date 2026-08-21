@@ -15,6 +15,11 @@ CREDENTIALS_EXCEPTION = HTTPException(
     detail="Token inválido o expirado",
 )
 
+CUENTA_INACTIVA = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Cuenta inactiva, contacta al administrador",
+)
+
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
@@ -45,6 +50,14 @@ def get_current_user(
     user = UserRepository(db).get_by_id(uid)
     if user is None:
         raise CREDENTIALS_EXCEPTION
+
+    # La cuenta pudo suspenderse después de emitir el token. Se comprueba en
+    # cada petición para que la suspensión sea inmediata y no espere a que
+    # expire el access token. Se responde 401 y no 403 a propósito: así el
+    # cliente limpia la sesión y vuelve al acceso, donde el intento de entrar
+    # explica que la cuenta está inactiva.
+    if not user.is_active:
+        raise CUENTA_INACTIVA
 
     return user
 
