@@ -12,6 +12,7 @@ from app.schemas.ciclo import (
     CiclosResponse,
     CicloResponse,
     CrearCicloRequest,
+    RenombrarCicloRequest,
 )
 
 router = APIRouter(prefix="/ciclos", tags=["Mediciones"])
@@ -167,3 +168,59 @@ def cerrar_ahora(
 
     ciclo.fecha_cierre = datetime.now(timezone.utc)
     return _a_response(db, repo.guardar(db, ciclo))
+
+
+@router.patch("/{ciclo_id}/nombre", response_model=CicloResponse)
+def renombrar(
+    ciclo_id: int,
+    data: RenombrarCicloRequest,
+    _admin: User = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Cambia el nombre de una medición. Es seguro en cualquier seguimiento: el
+    nombre es solo una etiqueta, no cambia a qué ronda pertenece cada respuesta."""
+    ciclo = repo.obtener(db, ciclo_id)
+    if ciclo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medición no encontrada",
+        )
+    if ciclo.tipo == LINEA_BASE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El nombre de la línea base no se cambia",
+        )
+    ciclo.nombre = data.nombre
+    return _a_response(db, repo.guardar(db, ciclo))
+
+
+@router.delete("/{ciclo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar(
+    ciclo_id: int,
+    _admin: User = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Elimina una medición SIN respuestas (p. ej. una programada por error).
+
+    No se puede borrar la línea base ni una medición con respuestas: esas son
+    datos de la investigación. Al borrar una, la anterior vuelve a ser la más
+    reciente y por tanto editable/reabrible.
+    """
+    ciclo = repo.obtener(db, ciclo_id)
+    if ciclo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medición no encontrada",
+        )
+    if ciclo.tipo == LINEA_BASE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La línea base no se puede eliminar",
+        )
+    if repo.contar_respuestas(db, ciclo.id) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes eliminar una medición que ya tiene respuestas",
+        )
+    repo.eliminar(db, ciclo)
+    return None

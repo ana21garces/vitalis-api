@@ -48,6 +48,20 @@ class ActualizarCicloRequest(BaseModel):
     fecha_cierre: datetime | None = None
 
 
+class RenombrarCicloRequest(BaseModel):
+    """Cambia solo el nombre de una medición. Es una etiqueta: no afecta a qué
+    ronda pertenece cada respuesta, así que se permite en cualquier seguimiento."""
+
+    nombre: str
+
+    @field_validator("nombre")
+    @classmethod
+    def nombre_no_vacio(cls, v: str) -> str:
+        if len(v.strip()) < 3:
+            raise ValueError("El nombre debe tener al menos 3 caracteres")
+        return v.strip()
+
+
 class SeguimientoPendiente(BaseModel):
     """Lo que necesita el frontend para avisarle a la persona."""
 

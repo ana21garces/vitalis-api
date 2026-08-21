@@ -113,6 +113,11 @@ def guardar(db: Session, ciclo: CicloMedicion) -> CicloMedicion:
     return ciclo
 
 
+def eliminar(db: Session, ciclo: CicloMedicion) -> None:
+    db.delete(ciclo)
+    db.commit()
+
+
 def contar_respuestas(db: Session, ciclo_id: int) -> int:
     return (
         db.query(func.count(func.distinct(EncuestaHplp.usuario_id)))
