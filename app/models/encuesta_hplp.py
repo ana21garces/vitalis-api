@@ -10,6 +10,9 @@ class EncuestaHplp(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     usuario_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     fecha_respuesta = Column(DateTime(timezone=True), server_default=func.now())
+    # Medición a la que pertenece la respuesta (ciclos_medicion.id). Es lo que
+    # permite comparar la línea base con cada seguimiento.
+    ciclo_id = Column(Integer, nullable=True, index=True)
 
     # ── Relaciones Interpersonales (9 ítems, prefijo ri_) ──────────────────
     ri_item_01 = Column(SmallInteger, nullable=False)

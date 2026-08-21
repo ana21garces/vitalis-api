@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List, Literal, Optional
 
+from app.schemas.ciclo import SeguimientoPendiente
+
 Val = Literal[1, 2, 3, 4]
 
 TipoUsuario = Literal["estudiante", "docente", "administrativo"]
@@ -125,6 +127,10 @@ class EncuestaHistorialItem(BaseModel):
     encuesta_id: int
     fecha: datetime
     resultados: ResultadosEncuesta
+    # Medición a la que pertenece ("Línea base", "Seguimiento 1"). Puede venir
+    # vacía en respuestas guardadas antes de que existieran las mediciones.
+    ciclo: str | None = None
+    ciclo_numero: int | None = None
 
 
 class EncuestaHistorialResponse(BaseModel):
@@ -136,10 +142,9 @@ class EncuestaHistorialResponse(BaseModel):
 class EstadoEncuesta(BaseModel):
     completada: bool
     encuesta_id: int | None = None
-
-
-class ResetearResponse(BaseModel):
-    message: str
+    # Presente solo si hay un seguimiento abierto que esta persona aún no
+    # respondió. El frontend lo usa para mostrar el aviso.
+    seguimiento_pendiente: SeguimientoPendiente | None = None
 
 
 class OpcionesFiltrosResponse(BaseModel):

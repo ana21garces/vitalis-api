@@ -84,11 +84,14 @@ def test_historial_sin_encuestas(client, auth_headers):
     assert res.status_code == 404
 
 
-def test_resetear_sin_admin(client, auth_headers):
-    r = client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
-    encuesta_id = r.json()["encuesta_id"]
-    res = client.patch(f"{ENCUESTA_URL}/{encuesta_id}/resetear", headers=auth_headers)
-    assert res.status_code == 403
+def test_historial_trae_la_medicion(client, auth_headers):
+    """Cada respuesta queda etiquetada con la medición a la que pertenece."""
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    res = client.get(f"{ENCUESTA_URL}/historial", headers=auth_headers)
+    assert res.status_code == 200
+    primera = res.json()["encuestas"][0]
+    assert primera["ciclo"] == "Línea base"
+    assert primera["ciclo_numero"] == 1
 
 
 # ── Tests Capellán: Psicología Positiva ──────────────────────────────────────
