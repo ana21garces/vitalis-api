@@ -202,6 +202,10 @@ class ResultadoCapellanItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     psicologia_positiva: PsicologiaPositivaItems
 
 
@@ -283,6 +287,10 @@ class ResultadoActFisicaItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     actividad_fisica: ActividadFisicaItems
 
 
@@ -339,6 +347,10 @@ class ResultadoRespSaludItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     responsabilidad_salud: ResponsabilidadSaludItems
 
 
@@ -387,6 +399,10 @@ class ResultadoMEItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     manejo_estres: ManejoEstresItems
 
 
@@ -450,6 +466,10 @@ class ResultadoRIItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     relaciones_interpersonales: RelacionesInterpersonalesItems
 
 
@@ -505,6 +525,10 @@ class ResultadoNutricionItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     nutricion: NutricionItems
 
 
