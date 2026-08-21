@@ -29,7 +29,6 @@ ROLES_EXCLUIDOS = [
     UserRole.CAPELLAN.value,
     UserRole.ACTIVIDAD_FISICA.value,
     UserRole.RESPONSABILIDAD_SALUD.value,
-    UserRole.HEALTH_MANAGER.value,
 ]
 
 # Nombre legible de cada dimension, en el orden en que salen las columnas.

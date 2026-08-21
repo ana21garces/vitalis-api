@@ -5,10 +5,16 @@ from app.models.user import User
 from app.schemas.encuesta_hplp import EncuestaCreate
 
 
-def ya_respondio(db: Session, usuario_id: uuid.UUID) -> bool:
-    return db.query(EncuestaHplp).filter(
-        EncuestaHplp.usuario_id == usuario_id
-    ).first() is not None
+def ya_respondio(db: Session, usuario_id: uuid.UUID, ciclo_id: int | None = None) -> bool:
+    """Si la persona ya respondió. Con `ciclo_id`, si ya respondió esa medición.
+
+    Sin ciclo es la pregunta de antes ("¿tiene alguna encuesta?"), que sigue
+    sirviendo para saber si es su primera vez.
+    """
+    q = db.query(EncuestaHplp).filter(EncuestaHplp.usuario_id == usuario_id)
+    if ciclo_id is not None:
+        q = q.filter(EncuestaHplp.ciclo_id == ciclo_id)
+    return q.first() is not None
 
 
 def crear_encuesta(
@@ -16,9 +22,11 @@ def crear_encuesta(
     data: EncuestaCreate,
     puntajes: dict,
     usuario_id: uuid.UUID,
+    ciclo_id: int | None = None,
 ) -> EncuestaHplp:
     encuesta = EncuestaHplp(
         usuario_id=usuario_id,
+        ciclo_id=ciclo_id,
 
         # RI
         ri_item_01=data.ri_item_01, ri_item_07=data.ri_item_07,
@@ -94,15 +102,6 @@ def obtener_ultimo(db: Session, usuario_id: uuid.UUID) -> EncuestaHplp | None:
         .order_by(EncuestaHplp.fecha_respuesta.desc())
         .first()
     )
-
-
-def eliminar(db: Session, encuesta_id: int) -> bool:
-    encuesta = db.query(EncuestaHplp).filter(EncuestaHplp.id == encuesta_id).first()
-    if not encuesta:
-        return False
-    db.delete(encuesta)
-    db.commit()
-    return True
 
 
 def _base_resultados_query(db: Session, facultad: str | None, carrera: str | None, tipo_usuario: str | None):
@@ -182,7 +181,6 @@ def obtener_resumen_admin(db: Session) -> dict:
         UserRole.CAPELLAN.value,
         UserRole.ACTIVIDAD_FISICA.value,
         UserRole.RESPONSABILIDAD_SALUD.value,
-        UserRole.HEALTH_MANAGER.value,
         UserRole.RELACIONES_INTERPERSONALES.value,
         UserRole.MANEJO_ESTRES.value,
         UserRole.NUTRICION.value,
@@ -257,6 +255,17 @@ def obtener_resultados_pp_todos(
     carrera: str | None = None,
     tipo_usuario: str | None = None,
 ) -> list[tuple[EncuestaHplp, User]]:
+    return _base_resultados_query(db, facultad, carrera, tipo_usuario)
+
+
+def obtener_perfiles_todos(
+    db: Session,
+    facultad: str | None = None,
+    carrera: str | None = None,
+    tipo_usuario: str | None = None,
+) -> list[tuple[EncuestaHplp, User]]:
+    """Última encuesta de cada usuario, con el usuario, para la vista de admin
+    de perfiles de salud (todas las dimensiones)."""
     return _base_resultados_query(db, facultad, carrera, tipo_usuario)
 
 

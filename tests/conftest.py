@@ -9,8 +9,9 @@ from app.core.dependencies import get_db
 from app.models import user as _user_model          # noqa: F401 — registra tabla users
 from app.models import encuesta_hplp as _enc_model  # noqa: F401 — registra tabla encuestas_hplp
 from app.models import notificacion as _notif_model # noqa: F401 — registra tabla notificaciones
+from app.models import ciclo_medicion as _ciclo_model # noqa: F401 — registra tabla ciclos_medicion
 
-_SQLITE_TABLES = ["users", "encuestas_hplp", "notificaciones"]
+_SQLITE_TABLES = ["users", "encuestas_hplp", "notificaciones", "ciclos_medicion"]
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
 
@@ -40,6 +41,7 @@ def limpiar_tablas():
     db = TestingSessionLocal()
     db.execute(text("DELETE FROM notificaciones"))
     db.execute(text("DELETE FROM encuestas_hplp"))
+    db.execute(text("DELETE FROM ciclos_medicion"))
     db.execute(text("DELETE FROM users"))
     db.commit()
     db.close()
@@ -241,6 +243,34 @@ def n_headers(client, n_user):
     res = client.post(
         "/api/v1/auth/login",
         json={"email": n_user["email"], "password": n_user["password"]},
+    )
+    token = res.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def admin_user(client):
+    payload = {
+        "full_name": "Admin Test",
+        "email": "admin@vitalis.com",
+        "password": "password123",
+        "confirm_password": "password123",
+    }
+    client.post("/api/v1/auth/register", json=payload)
+    db = TestingSessionLocal()
+    from app.models.user import User, UserRole
+    user = db.query(User).filter(User.email == payload["email"]).first()
+    user.role = UserRole.ADMIN
+    db.commit()
+    db.close()
+    return payload
+
+
+@pytest.fixture()
+def admin_headers(client, admin_user):
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"email": admin_user["email"], "password": admin_user["password"]},
     )
     token = res.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

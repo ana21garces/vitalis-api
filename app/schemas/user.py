@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from uuid import UUID
 from datetime import datetime
 from app.models.user import UserRole
@@ -21,3 +21,60 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CambiarRolRequest(BaseModel):
+    role: UserRole
+
+
+class CambiarEstadoRequest(BaseModel):
+    is_active: bool
+
+
+class ActualizarPerfilRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+
+    @field_validator("full_name")
+    @classmethod
+    def name_must_not_be_empty(cls, v):
+        if len(v.strip()) < 2:
+            raise ValueError("El nombre debe tener al menos 2 caracteres")
+        return v.strip()
+
+
+class CambiarPasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("La contraseña debe tener mínimo 8 caracteres")
+        return v
+
+
+class MensajeResponse(BaseModel):
+    message: str
+
+
+class CrearUsuarioRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str
+    role: UserRole = UserRole.STUDENT
+
+    @field_validator("full_name")
+    @classmethod
+    def name_must_not_be_empty(cls, v):
+        if len(v.strip()) < 2:
+            raise ValueError("El nombre debe tener al menos 2 caracteres")
+        return v.strip()
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("La contraseña debe tener mínimo 8 caracteres")
+        return v

@@ -8,6 +8,7 @@ from app.db.session import engine
 from app.models.encuesta_hplp import EncuestaHplp  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.notificacion import Notificacion  # noqa: F401
+from app.models.ciclo_medicion import CicloMedicion  # noqa: F401
 
 
 def init_db() -> None:
@@ -49,3 +50,49 @@ def init_db() -> None:
         ))
     if resultado.rowcount:
         print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas", flush=True)
+
+    # Migración: mediciones. create_all() crea la tabla ciclos_medicion nueva,
+    # pero no agrega la columna a encuestas_hplp, que ya existía.
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS ciclo_id INTEGER"
+        ))
+    print("[OK] Columna ciclo_id verificada", flush=True)
+
+    # Las encuestas que ya existían son la línea base: se crea el ciclo si hace
+    # falta y se les asigna. Sin esto quedarían sin medición y no entrarían en
+    # ninguna comparación.
+    with engine.begin() as conn:
+        pendientes = conn.execute(text(
+            "SELECT count(*) FROM encuestas_hplp WHERE ciclo_id IS NULL"
+        )).scalar()
+        if pendientes:
+            linea_base = conn.execute(text(
+                "SELECT id FROM ciclos_medicion WHERE tipo = 'linea_base' LIMIT 1"
+            )).scalar()
+            if linea_base is None:
+                linea_base = conn.execute(text(
+                    "INSERT INTO ciclos_medicion "
+                    "(numero, nombre, tipo, fecha_apertura, fecha_cierre, created_at) "
+                    "VALUES (1, 'Línea base', 'linea_base', "
+                    "COALESCE((SELECT min(fecha_respuesta) FROM encuestas_hplp), now()), "
+                    "NULL, now()) RETURNING id"
+                )).scalar()
+            conn.execute(
+                text("UPDATE encuestas_hplp SET ciclo_id = :cid WHERE ciclo_id IS NULL"),
+                {"cid": linea_base},
+            )
+            print(f"[OK] {pendientes} encuestas asignadas a la linea base", flush=True)
+
+    # Una sola respuesta por persona y medición. Si la tabla ya tuviera un
+    # duplicado, el índice no se crea y se avisa: hay que revisarlo a mano
+    # antes de confiar en las comparaciones por ronda.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_encuesta_usuario_ciclo "
+                "ON encuestas_hplp (usuario_id, ciclo_id)"
+            ))
+        print("[OK] Indice unico (usuario_id, ciclo_id) verificado", flush=True)
+    except Exception as exc:
+        print(f"[AVISO] No se pudo crear el indice unico de mediciones: {exc}", flush=True)

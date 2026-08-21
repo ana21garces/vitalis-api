@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, requiere_admin
 from app.models.user import User
 from app.schemas.encuesta_hplp import (
     EncuestaCreate,
@@ -12,9 +12,10 @@ from app.schemas.encuesta_hplp import (
     ResultadosEncuesta,
     DimensionResultado,
     EstadoEncuesta,
-    ResetearResponse,
     OpcionesFiltrosResponse,
     ResumenAdminResponse,
+    PerfilSaludItem,
+    PerfilesSaludResponse,
     PsicologiaPositivaItems,
     ResultadoCapellanItem,
     CarreraGroupPP,
@@ -63,6 +64,8 @@ from app.services.recomendaciones_n_service import obtener_recomendaciones_n
 from app.models.user import UserRole
 from app.services.encuesta_hplp_service import calcular_puntajes
 from app.repositories import encuesta_hplp_repository as repo
+from app.repositories import ciclo_repository as ciclos
+from app.schemas.ciclo import SeguimientoPendiente
 
 router = APIRouter(prefix="/encuesta", tags=["Encuesta HPLP-II ASD"])
 
@@ -129,12 +132,29 @@ def guardar_encuesta(
 ):
     """
     Recibe las 52 respuestas Likert (1–4), calcula los índices PEPS II
-    y guarda el resultado.  Cada usuario solo puede responder una vez.
+    y guarda el resultado.
+
+    La respuesta se etiqueta con la medición que le corresponde: la línea base
+    si es su primera vez, o el seguimiento que esté abierto si ya tenía una
+    encuesta. Una respuesta por persona por medición, así que sin seguimiento
+    abierto la segunda vez sigue dando 409 como antes.
     """
-    if repo.ya_respondio(db, current_user.id):
+    primera_vez = not repo.ya_respondio(db, current_user.id)
+
+    if primera_vez:
+        ciclo = ciclos.obtener_linea_base(db)
+    else:
+        ciclo = ciclos.obtener_seguimiento_abierto(db)
+        if ciclo is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="El usuario ya completó la encuesta",
+            )
+
+    if repo.ya_respondio(db, current_user.id, ciclo.id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El usuario ya completó la encuesta",
+            detail=f"Ya respondiste la medición «{ciclo.nombre}»",
         )
 
     # Actualizar perfil universitario del usuario con los datos de la encuesta
@@ -144,7 +164,7 @@ def guardar_encuesta(
     db.add(current_user)
 
     puntajes = calcular_puntajes(payload)
-    encuesta = repo.crear_encuesta(db, payload, puntajes, current_user.id)
+    encuesta = repo.crear_encuesta(db, payload, puntajes, current_user.id, ciclo.id)
 
     return EncuestaResponse(
         encuesta_id=encuesta.id,
@@ -163,11 +183,33 @@ def estado_encuesta(
     Indica si el usuario ya completó la encuesta.
     El frontend lo llama al iniciar sesión para decidir si mostrar
     la encuesta o redirigir directo al dashboard.
+
+    Si además hay un seguimiento abierto que le toca responder, lo devuelve en
+    `seguimiento_pendiente` para que el dashboard le muestre el aviso. Es
+    opcional: no bloquea nada, solo invita.
     """
     ultimo = repo.obtener_ultimo(db, current_user.id)
-    if ultimo:
-        return EstadoEncuesta(completada=True, encuesta_id=ultimo.id)
-    return EstadoEncuesta(completada=False)
+    if not ultimo:
+        return EstadoEncuesta(completada=False)
+
+    pendiente = None
+    abierto = ciclos.obtener_seguimiento_abierto(db)
+    if (
+        abierto is not None
+        and ciclos.es_elegible(db, abierto, current_user.id)
+        and not repo.ya_respondio(db, current_user.id, abierto.id)
+    ):
+        pendiente = SeguimientoPendiente(
+            ciclo_id=abierto.id,
+            nombre=abierto.nombre,
+            fecha_cierre=abierto.fecha_cierre,
+        )
+
+    return EstadoEncuesta(
+        completada=True,
+        encuesta_id=ultimo.id,
+        seguimiento_pendiente=pendiente,
+    )
 
 
 @router.get("/resultado", response_model=EncuestaResponse)
@@ -193,46 +235,6 @@ def resultado_encuesta(
     )
 
 
-@router.patch("/{encuesta_id}/resetear", response_model=ResetearResponse)
-def resetear_encuesta(
-    encuesta_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Solo administradores pueden resetear la encuesta de un usuario
-    para que pueda volver a completarla.
-
-    OJO — esto BORRA la encuesta, no la archiva.
-
-    El objetivo del proyecto es que los profesionales puedan reasignar la
-    encuesta y comparar los resultados anteriores con los nuevos. Con el
-    borrado, reasignar destruye justamente el dato que se quiere comparar.
-
-    Para habilitarlo hay que levantar dos bloqueos: el guard ya_respondio de
-    guardar_encuesta, y este borrado, que deberia pasar a marcar al usuario
-    como habilitado para responder otra vez. La capa de repositorio ya soporta
-    varias encuestas por usuario (obtener_por_usuario las devuelve todas,
-    obtener_ultimo toma la mas reciente, y las vistas profesionales agrupan
-    con func.max(id)), asi que el cambio es acotado.
-
-    Mientras tanto: no usar en produccion, y no eliminar /historial aunque hoy
-    solo pueda devolver un elemento.
-    """
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo los administradores pueden resetear encuestas",
-        )
-    eliminada = repo.eliminar(db, encuesta_id)
-    if not eliminada:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No se encontró la encuesta con id {encuesta_id}",
-        )
-    return ResetearResponse(message=f"Encuesta {encuesta_id} eliminada. El usuario puede volver a completarla.")
-
-
 @router.get("/capellan/psicologia-positiva", response_model=ResultadosCapellanResponse)
 def resultados_psicologia_positiva(
     db: Session = Depends(get_db),
@@ -246,7 +248,7 @@ def resultados_psicologia_positiva(
     Devuelve resultados de Psicología Positiva agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.CAPELLAN:
+    if current_user.role not in (UserRole.CAPELLAN, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el capellán puede acceder a esta vista",
@@ -311,7 +313,7 @@ def estadisticas_psicologia_positiva(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.CAPELLAN:
+    if current_user.role not in (UserRole.CAPELLAN, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el capellán puede acceder a esta vista",
@@ -363,7 +365,7 @@ def resultados_actividad_fisica(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.ACTIVIDAD_FISICA:
+    if current_user.role not in (UserRole.ACTIVIDAD_FISICA, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Actividad Física puede acceder a esta vista",
@@ -427,7 +429,7 @@ def estadisticas_actividad_fisica(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.ACTIVIDAD_FISICA:
+    if current_user.role not in (UserRole.ACTIVIDAD_FISICA, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Actividad Física puede acceder a esta vista",
@@ -479,7 +481,7 @@ def resultados_responsabilidad_salud(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
+    if current_user.role not in (UserRole.RESPONSABILIDAD_SALUD, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
@@ -541,7 +543,7 @@ def estadisticas_responsabilidad_salud(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.RESPONSABILIDAD_SALUD:
+    if current_user.role not in (UserRole.RESPONSABILIDAD_SALUD, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Responsabilidad en Salud puede acceder a esta vista",
@@ -593,7 +595,7 @@ def resultados_relaciones_interpersonales(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.RELACIONES_INTERPERSONALES:
+    if current_user.role not in (UserRole.RELACIONES_INTERPERSONALES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Relaciones Interpersonales puede acceder a esta vista",
@@ -657,7 +659,7 @@ def estadisticas_relaciones_interpersonales(
     los gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.RELACIONES_INTERPERSONALES:
+    if current_user.role not in (UserRole.RELACIONES_INTERPERSONALES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Relaciones Interpersonales puede acceder a esta vista",
@@ -712,7 +714,7 @@ def resultados_manejo_estres(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.MANEJO_ESTRES:
+    if current_user.role not in (UserRole.MANEJO_ESTRES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Manejo del Estrés puede acceder a esta vista",
@@ -775,7 +777,7 @@ def estadisticas_manejo_estres(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.MANEJO_ESTRES:
+    if current_user.role not in (UserRole.MANEJO_ESTRES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Manejo del Estrés puede acceder a esta vista",
@@ -829,7 +831,7 @@ def resultados_nutricion(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.NUTRICION:
+    if current_user.role not in (UserRole.NUTRICION, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Nutrición puede acceder a esta vista",
@@ -894,7 +896,7 @@ def estadisticas_nutricion(
     qué facultades necesitan más atención y cómo está la universidad en
     conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.NUTRICION:
+    if current_user.role not in (UserRole.NUTRICION, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Nutrición puede acceder a esta vista",
@@ -942,7 +944,7 @@ def resumen_admin(
     Vista exclusiva para el administrador.
     Devuelve totales: usuarios registrados, que completaron la encuesta HPLP,
     sin completar y tasa de participación.
-    Solo cuenta usuarios con rol student/health_manager (excluye profesionales y admin).
+    Solo cuenta usuarios con rol student (excluye cuentas profesionales y admin).
     """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
@@ -950,6 +952,36 @@ def resumen_admin(
             detail="Solo los administradores pueden acceder a este resumen",
         )
     return repo.obtener_resumen_admin(db)
+
+
+@router.get("/perfiles", response_model=PerfilesSaludResponse)
+def perfiles_salud(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(requiere_admin),
+    facultad: Optional[str] = Query(None, description="Filtrar por facultad"),
+    tipo_usuario: Optional[str] = Query(None, description="Filtrar por tipo de usuario"),
+):
+    """Perfiles de bienestar de todos los usuarios que respondieron la encuesta.
+
+    Vista del administrador: por cada usuario, su última encuesta con las 6
+    dimensiones PEPS II y el índice/nivel global. Reutiliza la misma consulta
+    base que las vistas por rol (última encuesta de cada usuario).
+    """
+    filas = repo.obtener_perfiles_todos(db, facultad=facultad, tipo_usuario=tipo_usuario)
+    perfiles = [
+        PerfilSaludItem(
+            usuario_id=str(usuario.id),
+            nombre=usuario.full_name,
+            email=usuario.email,
+            facultad=usuario.facultad,
+            programa=usuario.program,
+            tipo_usuario=usuario.tipo_usuario,
+            fecha=encuesta.fecha_respuesta,
+            resultados=_build_resultados(encuesta),
+        )
+        for encuesta, usuario in filas
+    ]
+    return PerfilesSaludResponse(total=len(perfiles), perfiles=perfiles)
 
 
 @router.get("/filtros/opciones", response_model=OpcionesFiltrosResponse)
@@ -968,7 +1000,6 @@ def opciones_filtros(
         UserRole.CAPELLAN,
         UserRole.ACTIVIDAD_FISICA,
         UserRole.RESPONSABILIDAD_SALUD,
-        UserRole.HEALTH_MANAGER,
         UserRole.RELACIONES_INTERPERSONALES,
         UserRole.MANEJO_ESTRES,
         UserRole.NUTRICION,
@@ -995,6 +1026,9 @@ def historial_encuestas(
             detail="No se encontraron encuestas para este usuario",
         )
 
+    # Nombre de cada medición en una sola consulta, para no pedirla por fila.
+    nombres = {c.id: c for c in ciclos.listar(db)}
+
     return EncuestaHistorialResponse(
         usuario_id=str(current_user.id),
         total=len(encuestas),
@@ -1003,6 +1037,8 @@ def historial_encuestas(
                 encuesta_id=e.id,
                 fecha=e.fecha_respuesta,
                 resultados=_build_resultados(e),
+                ciclo=nombres[e.ciclo_id].nombre if e.ciclo_id in nombres else None,
+                ciclo_numero=nombres[e.ciclo_id].numero if e.ciclo_id in nombres else None,
             )
             for e in encuestas
         ],
