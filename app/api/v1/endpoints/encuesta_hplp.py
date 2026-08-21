@@ -714,7 +714,7 @@ def resultados_manejo_estres(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.MANEJO_ESTRES:
+    if current_user.role not in (UserRole.MANEJO_ESTRES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Manejo del Estrés puede acceder a esta vista",
@@ -777,7 +777,7 @@ def estadisticas_manejo_estres(
     gráficos de qué facultades necesitan más atención y cómo está la
     universidad en conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.MANEJO_ESTRES:
+    if current_user.role not in (UserRole.MANEJO_ESTRES, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Manejo del Estrés puede acceder a esta vista",
@@ -831,7 +831,7 @@ def resultados_nutricion(
     Devuelve resultados agrupados por facultad y carrera.
     Acepta filtros opcionales: facultad, carrera, tipo_usuario.
     """
-    if current_user.role != UserRole.NUTRICION:
+    if current_user.role not in (UserRole.NUTRICION, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Nutrición puede acceder a esta vista",
@@ -896,7 +896,7 @@ def estadisticas_nutricion(
     qué facultades necesitan más atención y cómo está la universidad en
     conjunto. No admite filtros: es la foto completa.
     """
-    if current_user.role != UserRole.NUTRICION:
+    if current_user.role not in (UserRole.NUTRICION, UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el profesional de Nutrición puede acceder a esta vista",

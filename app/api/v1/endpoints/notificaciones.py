@@ -14,6 +14,7 @@ router = APIRouter(prefix="/notificaciones", tags=["Notificaciones"])
 # Roles que pueden invitar a un estudiante a agendar una cita desde su vista
 # de resultados.
 ROLES_QUE_NOTIFICAN = {
+    UserRole.ADMIN,
     UserRole.CAPELLAN,
     UserRole.ACTIVIDAD_FISICA,
     UserRole.RESPONSABILIDAD_SALUD,
