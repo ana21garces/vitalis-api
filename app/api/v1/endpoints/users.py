@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_current_user, requiere_admin
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.user import User, UserRole
 from app.models.encuesta_hplp import EncuestaHplp
 from app.models.notificacion import Notificacion
@@ -16,6 +16,9 @@ from app.schemas.user import (
     CambiarRolRequest,
     CambiarEstadoRequest,
     CrearUsuarioRequest,
+    ActualizarPerfilRequest,
+    CambiarPasswordRequest,
+    MensajeResponse,
 )
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -30,6 +33,47 @@ def leer_perfil_propio(current_user: User = Depends(get_current_user)):
     mostraban nombres fijos como «Estudiante» o «Prof. Actividad Física».
     """
     return current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+def actualizar_perfil_propio(
+    data: ActualizarPerfilRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """El usuario actualiza su nombre y su correo.
+
+    El correo es el identificador de acceso: si lo cambia, a partir del próximo
+    inicio de sesión entra con el nuevo. Se valida que no lo tenga otra cuenta.
+    """
+    repo = UserRepository(db)
+    if data.email != current_user.email:
+        existente = repo.get_by_email(data.email)
+        if existente is not None and existente.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="El correo ya está registrado en otra cuenta",
+            )
+    current_user.full_name = data.full_name
+    current_user.email = data.email
+    return repo.update(current_user)
+
+
+@router.patch("/me/password", response_model=MensajeResponse)
+def cambiar_password_propia(
+    data: CambiarPasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """El usuario cambia su contraseña. Se exige la actual por seguridad."""
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña actual no es correcta",
+        )
+    current_user.password_hash = hash_password(data.new_password)
+    UserRepository(db).update(current_user)
+    return MensajeResponse(message="Contraseña actualizada correctamente")
 
 
 @router.get("", response_model=List[UserResponse])
