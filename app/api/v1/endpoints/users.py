@@ -196,7 +196,9 @@ def eliminar_usuario(
 
     Antes de borrar la cuenta se limpian sus datos relacionados (encuestas y
     notificaciones) para no dejar registros huérfanos ni romper las llaves
-    foráneas. El administrador no puede eliminarse a sí mismo.
+    foráneas. El administrador no puede eliminarse a sí mismo, ni eliminar a
+    otro administrador: para borrar esa cuenta hay que quitarle antes el rol,
+    de modo que el borrado de un administrador sea siempre en dos pasos.
     """
     repo = UserRepository(db)
     user = repo.get_by_id(user_id)
@@ -210,10 +212,10 @@ def eliminar_usuario(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No puedes eliminar tu propia cuenta",
         )
-    if user.role == UserRole.ADMIN.value and repo.contar_admins() <= 1:
+    if user.role == UserRole.ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No puedes eliminar al último administrador",
+            detail="No puedes eliminar a otro administrador. Primero cámbiale el rol.",
         )
     db.query(EncuestaHplp).filter(EncuestaHplp.usuario_id == user.id).delete(
         synchronize_session=False
