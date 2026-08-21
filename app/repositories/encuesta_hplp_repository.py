@@ -104,6 +104,38 @@ def obtener_ultimo(db: Session, usuario_id: uuid.UUID) -> EncuestaHplp | None:
     )
 
 
+def obtener_anteriores_por_usuario(db: Session) -> dict[uuid.UUID, EncuestaHplp]:
+    """La penúltima encuesta de cada usuario (la anterior a la más reciente).
+
+    Es lo que permite el comparativo "70 (antes 55)" en las vistas por rol: la
+    más reciente la trae `_base_resultados_query`, y esta el punto de partida.
+    Se usa el id para ordenar, igual que esa consulta (id mayor = más nuevo), así
+    "anterior" es siempre la medición inmediatamente previa.
+    """
+    filas = (
+        db.query(EncuestaHplp.usuario_id, EncuestaHplp.id)
+        .order_by(EncuestaHplp.usuario_id, EncuestaHplp.id.desc())
+        .all()
+    )
+    # Por cada usuario, el segundo id que aparece es el de su medición anterior.
+    id_anterior: dict[uuid.UUID, int] = {}
+    vistos: dict[uuid.UUID, int] = {}
+    for uid, eid in filas:
+        n = vistos.get(uid, 0)
+        if n == 1:
+            id_anterior[uid] = eid
+        vistos[uid] = n + 1
+
+    if not id_anterior:
+        return {}
+
+    encuestas = (
+        db.query(EncuestaHplp).filter(EncuestaHplp.id.in_(id_anterior.values())).all()
+    )
+    por_id = {e.id: e for e in encuestas}
+    return {uid: por_id[eid] for uid, eid in id_anterior.items()}
+
+
 def _base_resultados_query(db: Session, facultad: str | None, carrera: str | None, tipo_usuario: str | None):
     """Subconsulta base: encuesta más reciente por usuario con filtros opcionales."""
     from sqlalchemy import func

@@ -124,6 +124,23 @@ def _build_resultados_from_puntajes(puntajes: dict) -> ResultadosEncuesta:
     )
 
 
+def _anterior_kwargs(anteriores: dict, usuario_id, prefijo: str) -> dict:
+    """Campos del comparativo con la medición anterior para un ítem por rol.
+
+    Devuelve el índice, nivel y fecha de esa dimensión en la encuesta previa del
+    usuario, o un dict vacío si es su primera medición (los campos quedan en None
+    por defecto). `prefijo` es el de la dimensión en la BD (pp, af, rs, ri, me, n).
+    """
+    ant = anteriores.get(usuario_id)
+    if ant is None:
+        return {}
+    return {
+        "indice_anterior": getattr(ant, f"{prefijo}_indice"),
+        "nivel_anterior": getattr(ant, f"{prefijo}_nivel"),
+        "fecha_anterior": ant.fecha_respuesta,
+    }
+
+
 @router.post("", response_model=EncuestaResponse, status_code=status.HTTP_201_CREATED)
 def guardar_encuesta(
     payload: EncuestaCreate,
@@ -259,6 +276,7 @@ def resultados_psicologia_positiva(
         )
 
     filas = repo.obtener_resultados_pp_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     # Agrupación: facultad → carrera → usuarios
     por_facultad: dict[str | None, dict[str | None, list[ResultadoCapellanItem]]] = {}
@@ -272,6 +290,7 @@ def resultados_psicologia_positiva(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "pp"),
             psicologia_positiva=PsicologiaPositivaItems(
                 pp_item_06=encuesta.pp_item_06,
                 pp_item_12=encuesta.pp_item_12,
@@ -376,6 +395,7 @@ def resultados_actividad_fisica(
         )
 
     filas = repo.obtener_resultados_af_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoActFisicaItem]]] = {}
     for encuesta, usuario in filas:
@@ -388,6 +408,7 @@ def resultados_actividad_fisica(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "af"),
             actividad_fisica=ActividadFisicaItems(
                 af_item_04=encuesta.af_item_04,
                 af_item_10=encuesta.af_item_10,
@@ -492,6 +513,7 @@ def resultados_responsabilidad_salud(
         )
 
     filas = repo.obtener_resultados_rs_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoRespSaludItem]]] = {}
     for encuesta, usuario in filas:
@@ -504,6 +526,7 @@ def resultados_responsabilidad_salud(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "rs"),
             responsabilidad_salud=ResponsabilidadSaludItems(
                 rs_item_03=encuesta.rs_item_03,
                 rs_item_09=encuesta.rs_item_09,
@@ -606,6 +629,7 @@ def resultados_relaciones_interpersonales(
         )
 
     filas = repo.obtener_resultados_ri_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoRIItem]]] = {}
     for encuesta, usuario in filas:
@@ -618,6 +642,7 @@ def resultados_relaciones_interpersonales(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "ri"),
             relaciones_interpersonales=RelacionesInterpersonalesItems(
                 ri_item_01=encuesta.ri_item_01,
                 ri_item_07=encuesta.ri_item_07,
@@ -725,6 +750,7 @@ def resultados_manejo_estres(
         )
 
     filas = repo.obtener_resultados_me_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoMEItem]]] = {}
     for encuesta, usuario in filas:
@@ -737,6 +763,7 @@ def resultados_manejo_estres(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "me"),
             manejo_estres=ManejoEstresItems(
                 me_item_05=encuesta.me_item_05,
                 me_item_11=encuesta.me_item_11,
@@ -842,6 +869,7 @@ def resultados_nutricion(
         )
 
     filas = repo.obtener_resultados_n_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoNutricionItem]]] = {}
     for encuesta, usuario in filas:
@@ -854,6 +882,7 @@ def resultados_nutricion(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "n"),
             nutricion=NutricionItems(
                 n_item_02=encuesta.n_item_02,
                 n_item_08=encuesta.n_item_08,
