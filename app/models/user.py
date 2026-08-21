@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, Date, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -42,6 +42,8 @@ class User(Base):
     total_xp = Column(Integer, default=0, nullable=False)
     current_level = Column(Integer, default=1, nullable=False)
     streak_days = Column(Integer, default=0, nullable=False)
+    avatar_url = Column(String(500), nullable=True)
+    last_streak_date = Column(Date, nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

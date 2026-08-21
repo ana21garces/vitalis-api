@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime
 from app.models.user import UserRole
 
 
@@ -19,6 +19,8 @@ class UserResponse(BaseModel):
     total_xp: int
     current_level: int
     streak_days: int
+    avatar_url: str | None = None
+    rank_tier: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

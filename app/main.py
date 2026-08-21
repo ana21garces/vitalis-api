@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pathlib import Path
 from app.core.config import settings
 from app.db.session import check_database_connection
 from app.db.init_db import init_db
 from app.api.v1.router import api_router
+
+Path("uploads/avatars").mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
@@ -33,6 +37,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 @app.get("/health", tags=["Health"])
