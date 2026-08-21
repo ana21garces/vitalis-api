@@ -13,7 +13,7 @@ que ve el usuario), no se recalculan aquí.
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -65,7 +65,7 @@ DIM_POR_CLAVE = {
 NIVELES = ["Pobre", "Moderado", "Bueno", "Excelente"]
 
 TIPOS_VALIDOS = {"usuarios", "participacion", "progresion", "distribucion"}
-FORMATOS_VALIDOS = {"excel", "pdf"}
+FORMATOS_VALIDOS = {"excel", "pdf", "csv"}
 
 
 @dataclass
@@ -372,6 +372,22 @@ def construir_distribucion(db: Session, dimension: str = "global") -> Tabla:
 VERDE = "16A34A"
 
 
+def render_csv(tabla: Tabla) -> bytes:
+    """CSV plano con una fila por registro, para analizar en SPSS, R o Excel.
+
+    A diferencia del Excel, no lleva título ni formato: solo el encabezado y los
+    datos, que es lo que esperan los programas de estadística. Se escribe con
+    BOM (`utf-8-sig`) porque Excel en Windows, sin él, rompe las tildes.
+    """
+    import csv
+
+    salida = StringIO()
+    escritor = csv.writer(salida, delimiter=";", lineterminator="\r\n")
+    escritor.writerow(tabla.columnas)
+    escritor.writerows(tabla.filas)
+    return salida.getvalue().encode("utf-8-sig")
+
+
 def render_excel(tabla: Tabla) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -503,6 +519,8 @@ def generar(db: Session, tipo: str, *, rol: str, segmento: str,
 
 def render(tabla: Tabla, formato: str) -> tuple[bytes, str, str]:
     """Devuelve (contenido, media_type, extensión) para el formato pedido."""
+    if formato == "csv":
+        return render_csv(tabla), "text/csv; charset=utf-8", "csv"
     if formato == "excel":
         return (
             render_excel(tabla),
