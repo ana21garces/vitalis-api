@@ -14,6 +14,7 @@ from app.services import (
     recomendaciones_pp_service,
     recomendaciones_rs_service,
     recomendaciones_ri_service,
+    recomendaciones_n_service,
 )
 from app.services.encuesta_hplp_service import SUBSCALES_HPLP2
 
@@ -23,6 +24,7 @@ SERVICIOS_POR_DIMENSION = [
     ("responsabilidad_salud", recomendaciones_rs_service),
     ("relaciones_interpersonales", recomendaciones_ri_service),
     ("manejo_estres", recomendaciones_me_service),
+    ("nutricion", recomendaciones_n_service),
 ]
 
 

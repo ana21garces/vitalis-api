@@ -81,6 +81,16 @@ def test_manejo_estres_notifica_a_un_estudiante(client, manejo_estres_headers, a
     assert res.json()["remitente_nombre"] == "Manejo Estres Test"
 
 
+def test_nutricion_notifica_a_un_estudiante(client, n_headers, auth_headers):
+    res = client.post(
+        NOTIF_URL,
+        json={"destinatario_id": _mi_id(client, auth_headers), "mensaje": "Agenda una cita con nutrición."},
+        headers=n_headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["remitente_nombre"] == "Nutricion Test"
+
+
 def test_no_se_puede_notificar_a_un_profesional(client, capellan_headers, act_fisica_headers):
     """La notificación es para invitar a la población encuestable, no a colegas."""
     destinatario_id = _mi_id(client, act_fisica_headers)

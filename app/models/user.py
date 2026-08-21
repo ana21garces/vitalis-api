@@ -16,6 +16,7 @@ class UserRole(str, enum.Enum):
     RESPONSABILIDAD_SALUD = "responsabilidad_salud"
     RELACIONES_INTERPERSONALES = "relaciones_interpersonales"
     MANEJO_ESTRES = "manejo_estres"
+    NUTRICION = "nutricion"
 
 
 class User(Base):

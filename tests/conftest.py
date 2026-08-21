@@ -218,6 +218,34 @@ def manejo_estres_headers(client, manejo_estres_user):
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture()
+def n_user(client):
+    payload = {
+        "full_name": "Nutricion Test",
+        "email": "nutricion@vitalis.com",
+        "password": "password123",
+        "confirm_password": "password123",
+    }
+    client.post("/api/v1/auth/register", json=payload)
+    db = TestingSessionLocal()
+    from app.models.user import User, UserRole
+    user = db.query(User).filter(User.email == payload["email"]).first()
+    user.role = UserRole.NUTRICION
+    db.commit()
+    db.close()
+    return payload
+
+
+@pytest.fixture()
+def n_headers(client, n_user):
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"email": n_user["email"], "password": n_user["password"]},
+    )
+    token = res.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 ENCUESTA_PAYLOAD = {
     # Perfil universitario (se guarda en el usuario, no en la encuesta)
     "facultad": "Ingenieria",
