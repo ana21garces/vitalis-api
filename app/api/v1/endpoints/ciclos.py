@@ -11,9 +11,11 @@ from app.schemas.ciclo import (
     ActualizarCicloRequest,
     CiclosResponse,
     CicloResponse,
+    ComparacionResponse,
     CrearCicloRequest,
     RenombrarCicloRequest,
 )
+from app.services import comparacion_service
 
 router = APIRouter(prefix="/ciclos", tags=["Mediciones"])
 
@@ -48,6 +50,38 @@ def listar_ciclos(
         total=len(ciclos),
         ciclos=[_a_response(db, c) for c in ciclos],
     )
+
+
+@router.get("/comparar", response_model=ComparacionResponse)
+def comparar_mediciones(
+    base: int,
+    seguimiento: int,
+    _admin: User = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Compara dos mediciones entre sí. Solo el administrador.
+
+    Se declara antes de las rutas con `/{ciclo_id}` a propósito: si fuera
+    después, FastAPI intentaría leer "comparar" como un id.
+    """
+    ciclo_base = repo.obtener(db, base)
+    ciclo_seguimiento = repo.obtener(db, seguimiento)
+    if ciclo_base is None or ciclo_seguimiento is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medición no encontrada",
+        )
+    if ciclo_base.id == ciclo_seguimiento.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Elige dos mediciones distintas para comparar",
+        )
+    if ciclo_base.numero > ciclo_seguimiento.numero:
+        # Se ordenan solas: comparar "hacia atrás" invertiría el signo de todos
+        # los cambios y se leería como que la gente empeoró.
+        ciclo_base, ciclo_seguimiento = ciclo_seguimiento, ciclo_base
+
+    return comparacion_service.comparar(db, ciclo_base, ciclo_seguimiento)
 
 
 @router.post("", response_model=CicloResponse, status_code=status.HTTP_201_CREATED)
