@@ -9,6 +9,7 @@ from app.models.encuesta_hplp import EncuestaHplp  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.notificacion import Notificacion  # noqa: F401
 from app.models.ciclo_medicion import CicloMedicion  # noqa: F401
+from app.models.gamificacion import MisionDiaria, XpEvento  # noqa: F401
 
 
 def init_db() -> None:
@@ -41,6 +42,27 @@ def init_db() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS sexo VARCHAR(20)"
         ))
     print("[OK] Columnas facultad, tipo_usuario y sexo verificadas", flush=True)
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_streak_date DATE"
+        ))
+    print("[OK] Columnas avatar_url y last_streak_date verificadas", flush=True)
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0"
+        ))
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS current_level INTEGER DEFAULT 1"
+        ))
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0"
+        ))
+    print("[OK] Columnas de gamificacion en users verificadas", flush=True)
 
     # Migración: normaliza role a minúsculas.
     # El SAEnum original guardaba el nombre del miembro ("STUDENT") en vez de su

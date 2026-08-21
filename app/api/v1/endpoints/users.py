@@ -20,6 +20,7 @@ from app.schemas.user import (
     CambiarPasswordRequest,
     MensajeResponse,
 )
+from app.services.gamificacion_service import rank_desde_xp
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -32,7 +33,8 @@ def leer_perfil_propio(current_user: User = Depends(get_current_user)):
     el JWT solo lleva el id, el correo y el rol. Sin esto, las pantallas
     mostraban nombres fijos como «Estudiante» o «Prof. Actividad Física».
     """
-    return current_user
+    data = UserResponse.model_validate(current_user)
+    return data.model_copy(update={"rank_tier": rank_desde_xp(current_user.total_xp)})
 
 
 @router.patch("/me", response_model=UserResponse)
@@ -56,7 +58,9 @@ def actualizar_perfil_propio(
             )
     current_user.full_name = data.full_name
     current_user.email = data.email
-    return repo.update(current_user)
+    updated = repo.update(current_user)
+    response = UserResponse.model_validate(updated)
+    return response.model_copy(update={"rank_tier": rank_desde_xp(updated.total_xp)})
 
 
 @router.patch("/me/password", response_model=MensajeResponse)
