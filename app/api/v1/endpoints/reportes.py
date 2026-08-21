@@ -13,7 +13,7 @@ router = APIRouter(prefix="/reportes", tags=["Reportes"])
 @router.get("/{tipo}")
 def generar_reporte(
     tipo: str,
-    formato: str = Query("excel", description="excel | pdf"),
+    formato: str = Query("excel", description="excel | pdf | csv"),
     rol: str = Query("todos", description="todos | usuarios | profesionales"),
     segmento: str = Query("todas"),
     dimension: str = Query("global", description="global | todas | <clave de dimensión>"),
@@ -29,7 +29,9 @@ def generar_reporte(
     if tipo not in svc.TIPOS_VALIDOS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Reporte no encontrado")
     if formato not in svc.FORMATOS_VALIDOS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="El formato debe ser excel o pdf")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="El formato debe ser excel, pdf o csv"
+        )
     if dimension not in ("global", "todas") and dimension not in svc.DIM_POR_CLAVE:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Dimensión no válida")
     if nivel is not None and nivel not in svc.NIVELES:

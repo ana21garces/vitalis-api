@@ -12,6 +12,7 @@ class UserResponse(BaseModel):
     facultad: str | None
     program: str | None
     tipo_usuario: str | None
+    sexo: str | None
     role: UserRole
     is_active: bool
     is_verified: bool

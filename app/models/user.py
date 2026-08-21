@@ -30,6 +30,9 @@ class User(Base):
     facultad = Column(String(200), nullable=True)
     program = Column(String(150), nullable=True)
     tipo_usuario = Column(String(50), nullable=True)  # estudiante | docente | administrativo
+    # masculino | femenino. Se pide en la encuesta y se usa como variable de
+    # análisis; queda vacío en las cuentas que respondieron antes de guardarlo.
+    sexo = Column(String(20), nullable=True)
     # Usamos String para evitar problemas de caché con SAEnum en PostgreSQL.
     # UserRole hereda de str, por lo que las comparaciones (==, !=) funcionan
     # igual que con el tipo Enum nativo.

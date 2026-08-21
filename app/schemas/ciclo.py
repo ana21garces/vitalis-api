@@ -62,6 +62,45 @@ class RenombrarCicloRequest(BaseModel):
         return v.strip()
 
 
+class CicloRef(BaseModel):
+    """Identificación mínima de una medición dentro de una comparación."""
+
+    id: int
+    numero: int
+    nombre: str
+
+
+class DimensionComparada(BaseModel):
+    clave: str  # indice_global | ri | n | rs | af | me | pp
+    etiqueta: str
+    promedio_base: float
+    promedio_seguimiento: float
+    delta: float
+    mejoraron: int
+    se_mantuvieron: int
+    empeoraron: int
+
+
+class FacultadComparada(BaseModel):
+    facultad: str
+    total: int
+    promedio_base: float
+    promedio_seguimiento: float
+    delta: float
+
+
+class ComparacionResponse(BaseModel):
+    """Comparación entre dos mediciones, solo con quienes respondieron ambas."""
+
+    base: CicloRef
+    seguimiento: CicloRef
+    usuarios_comparados: int
+    respondieron_base: int
+    respondieron_seguimiento: int
+    dimensiones: list[DimensionComparada]
+    facultades: list[FacultadComparada]
+
+
 class SeguimientoPendiente(BaseModel):
     """Lo que necesita el frontend para avisarle a la persona."""
 

@@ -161,6 +161,10 @@ def guardar_encuesta(
     current_user.facultad = payload.facultad
     current_user.program = payload.program
     current_user.tipo_usuario = payload.tipo_usuario
+    # El sexo no se pide en los seguimientos de quien ya lo tiene, así que solo
+    # se sobrescribe cuando viene: si no, se conservaría el valor anterior.
+    if payload.sexo is not None:
+        current_user.sexo = payload.sexo
     db.add(current_user)
 
     puntajes = calcular_puntajes(payload)

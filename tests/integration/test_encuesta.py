@@ -84,6 +84,21 @@ def test_historial_sin_encuestas(client, auth_headers):
     assert res.status_code == 404
 
 
+def test_guardar_encuesta_guarda_el_sexo(client, auth_headers):
+    """El sexo se pedía en el formulario pero no se guardaba en ninguna parte;
+    es variable de análisis, así que tiene que quedar en el usuario."""
+    client.post(ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, "sexo": "femenino"}, headers=auth_headers)
+    perfil = client.get("/api/v1/users/me", headers=auth_headers).json()
+    assert perfil["sexo"] == "femenino"
+
+
+def test_sexo_invalido_se_rechaza(client, auth_headers):
+    res = client.post(
+        ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, "sexo": "cualquiera"}, headers=auth_headers
+    )
+    assert res.status_code == 422
+
+
 def test_historial_trae_la_medicion(client, auth_headers):
     """Cada respuesta queda etiquetada con la medición a la que pertenece."""
     client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)

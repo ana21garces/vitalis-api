@@ -8,12 +8,17 @@ Val = Literal[1, 2, 3, 4]
 
 TipoUsuario = Literal["estudiante", "docente", "administrativo"]
 
+Sexo = Literal["masculino", "femenino"]
+
 
 class EncuestaCreate(BaseModel):
     # Datos de perfil universitario (se guardan en el usuario)
     facultad: str
     program: str
     tipo_usuario: TipoUsuario
+    # Opcional en la API para no romper a quien ya responde sin él; el
+    # formulario sí lo exige. Si llega vacío, se conserva el que ya tuviera.
+    sexo: Sexo | None = None
 
     # Relaciones Interpersonales — 9 ítems (campo: ri_)
     ri_item_01: Val

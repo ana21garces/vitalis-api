@@ -103,6 +103,17 @@ def test_segunda_encuesta_solo_con_seguimiento_abierto(client, auth_headers, adm
     assert nombres == {"Línea base", "Seguimiento 1"}
 
 
+def test_el_seguimiento_conserva_el_sexo(client, auth_headers, admin_headers):
+    """En un seguimiento no se vuelven a pedir los demográficos, así que la
+    respuesta llega sin sexo: el que ya tenía la persona no debe borrarse."""
+    client.post(ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, "sexo": "masculino"}, headers=auth_headers)
+    _programar(client, admin_headers)
+    assert _responder(client, auth_headers).status_code == 201
+
+    perfil = client.get("/api/v1/users/me", headers=auth_headers).json()
+    assert perfil["sexo"] == "masculino"
+
+
 def test_no_se_responde_dos_veces_la_misma_medicion(client, auth_headers, admin_headers):
     _responder(client, auth_headers)
     _programar(client, admin_headers)
@@ -169,3 +180,90 @@ def test_la_linea_base_no_se_cierra(client, admin_headers):
 def test_programar_requiere_admin(client, auth_headers):
     res = _programar(client, auth_headers)
     assert res.status_code == 403
+
+
+# ── Comparación entre mediciones ─────────────────────────────────────────────
+
+COMPARAR_URL = f"{CICLOS_URL}/comparar"
+
+
+def test_comparar_requiere_admin(client, auth_headers):
+    res = client.get(COMPARAR_URL, params={"base": 1, "seguimiento": 2}, headers=auth_headers)
+    assert res.status_code == 403
+
+
+def test_comparar_dos_mediciones(client, auth_headers, admin_headers):
+    """Con la misma persona en las dos rondas, la comparación la cuenta una vez
+    y el cambio de nivel queda registrado."""
+    _responder(client, auth_headers)
+    ciclos = client.get(CICLOS_URL, headers=admin_headers).json()["ciclos"]
+    base_id = next(c["id"] for c in ciclos if c["tipo"] == "linea_base")
+    seguimiento_id = _programar(client, admin_headers).json()["id"]
+
+    # Segunda respuesta con puntajes altos: el índice tiene que subir.
+    mejor = {**ENCUESTA_PAYLOAD, **{k: 4 for k in ENCUESTA_PAYLOAD if "_item_" in k}}
+    assert client.post(ENCUESTA_URL, json=mejor, headers=auth_headers).status_code == 201
+
+    res = client.get(
+        COMPARAR_URL,
+        params={"base": base_id, "seguimiento": seguimiento_id},
+        headers=admin_headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["usuarios_comparados"] == 1
+    assert data["base"]["nombre"] == "Línea base"
+
+    global_ = data["dimensiones"][0]
+    assert global_["clave"] == "indice_global"
+    assert global_["promedio_seguimiento"] > global_["promedio_base"]
+    assert global_["delta"] > 0
+    assert global_["mejoraron"] == 1
+
+    facultad = data["facultades"][0]
+    assert facultad["total"] == 1
+    assert facultad["delta"] > 0
+
+
+def test_comparar_solo_cuenta_a_quien_respondio_ambas(client, auth_headers, admin_headers):
+    """Quien respondió solo la línea base no entra en la comparación."""
+    _responder(client, auth_headers)
+    ciclos = client.get(CICLOS_URL, headers=admin_headers).json()["ciclos"]
+    base_id = next(c["id"] for c in ciclos if c["tipo"] == "linea_base")
+    seguimiento_id = _programar(client, admin_headers).json()["id"]
+
+    data = client.get(
+        COMPARAR_URL,
+        params={"base": base_id, "seguimiento": seguimiento_id},
+        headers=admin_headers,
+    ).json()
+    assert data["respondieron_base"] == 1
+    assert data["respondieron_seguimiento"] == 0
+    assert data["usuarios_comparados"] == 0
+    assert data["dimensiones"][0]["promedio_base"] == 0.0
+
+
+def test_comparar_la_misma_medicion_falla(client, admin_headers):
+    linea_base = client.get(CICLOS_URL, headers=admin_headers).json()["ciclos"][0]
+    res = client.get(
+        COMPARAR_URL,
+        params={"base": linea_base["id"], "seguimiento": linea_base["id"]},
+        headers=admin_headers,
+    )
+    assert res.status_code == 400
+
+
+def test_comparar_se_ordena_sola(client, auth_headers, admin_headers):
+    """Pasar las mediciones al revés no invierte el signo del cambio."""
+    _responder(client, auth_headers)
+    ciclos = client.get(CICLOS_URL, headers=admin_headers).json()["ciclos"]
+    base_id = next(c["id"] for c in ciclos if c["tipo"] == "linea_base")
+    seguimiento_id = _programar(client, admin_headers).json()["id"]
+
+    data = client.get(
+        COMPARAR_URL,
+        params={"base": seguimiento_id, "seguimiento": base_id},
+        headers=admin_headers,
+    ).json()
+    assert data["base"]["id"] == base_id
+    assert data["seguimiento"]["id"] == seguimiento_id

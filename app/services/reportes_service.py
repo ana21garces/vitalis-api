@@ -13,7 +13,7 @@ que ve el usuario), no se recalculan aquí.
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -65,7 +65,7 @@ DIM_POR_CLAVE = {
 NIVELES = ["Pobre", "Moderado", "Bueno", "Excelente"]
 
 TIPOS_VALIDOS = {"usuarios", "participacion", "progresion", "distribucion"}
-FORMATOS_VALIDOS = {"excel", "pdf"}
+FORMATOS_VALIDOS = {"excel", "pdf", "csv"}
 
 
 @dataclass
@@ -142,7 +142,7 @@ def construir_usuarios(db: Session, rol: str = "todos") -> Tabla:
     # «Origen» distingue las cuentas creadas por el administrador (is_verified,
     # nacen verificadas) de las que se registraron solas por el formulario. No
     # hay verificación de correo, así que ese es el único significado real.
-    base = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Rol",
+    base = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Sexo", "Rol",
             "Origen", "Activo", "Fecha de registro", "Hizo encuesta",
             "Última encuesta", "Índice global", "Nivel global"]
     cols_dim = []
@@ -156,7 +156,7 @@ def construir_usuarios(db: Session, rol: str = "todos") -> Tabla:
         ind_g, niv_g = _indice_nivel(enc, "global")
         fila = [
             u.full_name, u.email, u.facultad or "", u.program or "",
-            u.tipo_usuario or "", ROLE_LABELS.get(u.role, u.role),
+            u.tipo_usuario or "", u.sexo or "", ROLE_LABELS.get(u.role, u.role),
             "Admin" if u.is_verified else "Registro", "Sí" if u.is_active else "No",
             _fecha(u.created_at), "Sí" if enc else "No",
             _fecha(enc.fecha_respuesta) if enc else "", ind_g, niv_g,
@@ -167,7 +167,7 @@ def construir_usuarios(db: Session, rol: str = "todos") -> Tabla:
         filas.append(fila)
 
     # El PDF muestra el resumen; el detalle por dimensión queda en el Excel.
-    cols_pdf = [0, 1, 2, 3, 4, 5, 6, 9, 12]  # hasta "Nivel global"
+    cols_pdf = [0, 1, 2, 3, 4, 5, 6, 7, 10, 13]  # hasta "Nivel global"
     etiqueta_rol = {"todos": "todos los roles", "usuarios": "solo usuarios",
                     "profesionales": "solo profesionales"}[rol]
     return Tabla(
@@ -217,7 +217,7 @@ def construir_participacion(db: Session, segmento: str = "todas") -> Tabla:
             return n == 0
         return True
 
-    columnas = ["Nombre", "Email", "Facultad", "Programa", "Tipo",
+    columnas = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Sexo",
                 "Encuestas completadas", "Hizo inicial", "Seguimientos",
                 "Última encuesta", "Índice global actual", "Nivel global actual"]
 
@@ -231,7 +231,7 @@ def construir_participacion(db: Session, segmento: str = "todas") -> Tabla:
         seguimientos = max(0, n - 1)
         filas.append([
             u.full_name, u.email, u.facultad or "", u.program or "",
-            u.tipo_usuario or "", str(n), "Sí" if n >= 1 else "No",
+            u.tipo_usuario or "", u.sexo or "", str(n), "Sí" if n >= 1 else "No",
             str(seguimientos), _fecha(enc.fecha_respuesta) if enc else "",
             ind_g, niv_g,
         ])
@@ -272,7 +272,7 @@ def construir_progresion(db: Session, dimension: str = "global", nivel: str | No
     # global cuando se piden todas o el global.
     clave_filtro = ambitos[-1][0] if dimension not in ("global", "todas") else "global"
 
-    base = ["Nombre", "Email", "Facultad", "Programa"]
+    base = ["Nombre", "Email", "Facultad", "Programa", "Sexo"]
     cols_dim = []
     for _, etiqueta in ambitos:
         cols_dim += [f"{etiqueta}: nivel inicial", f"{etiqueta}: índice inicial",
@@ -290,7 +290,7 @@ def construir_progresion(db: Session, dimension: str = "global", nivel: str | No
             _, niv_actual_filtro = _indice_nivel(ult_enc, clave_filtro)
             if niv_actual_filtro != nivel:
                 continue
-        fila = [u.full_name, u.email, u.facultad or "", u.program or ""]
+        fila = [u.full_name, u.email, u.facultad or "", u.program or "", u.sexo or ""]
         for clave, _ in ambitos:
             ind_b, niv_b = _indice_nivel(base_enc, clave)
             ind_a, niv_a = _indice_nivel(ult_enc, clave)
@@ -302,7 +302,7 @@ def construir_progresion(db: Session, dimension: str = "global", nivel: str | No
     cols_pdf = None
     nota = None
     if dimension == "todas":
-        cols_pdf = [0, 1, 2, 3, 4, 5, 6, 7, 8]  # base + primer ámbito (Global)
+        cols_pdf = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  # base + primer ámbito (Global)
         nota = "El detalle por cada dimensión está disponible en la versión Excel."
 
     etiqueta_dim = "todas las dimensiones" if dimension == "todas" else (
@@ -370,6 +370,22 @@ def construir_distribucion(db: Session, dimension: str = "global") -> Tabla:
 # ── Renderers ─────────────────────────────────────────────────────────────────
 
 VERDE = "16A34A"
+
+
+def render_csv(tabla: Tabla) -> bytes:
+    """CSV plano con una fila por registro, para analizar en SPSS, R o Excel.
+
+    A diferencia del Excel, no lleva título ni formato: solo el encabezado y los
+    datos, que es lo que esperan los programas de estadística. Se escribe con
+    BOM (`utf-8-sig`) porque Excel en Windows, sin él, rompe las tildes.
+    """
+    import csv
+
+    salida = StringIO()
+    escritor = csv.writer(salida, delimiter=";", lineterminator="\r\n")
+    escritor.writerow(tabla.columnas)
+    escritor.writerows(tabla.filas)
+    return salida.getvalue().encode("utf-8-sig")
 
 
 def render_excel(tabla: Tabla) -> bytes:
@@ -503,6 +519,8 @@ def generar(db: Session, tipo: str, *, rol: str, segmento: str,
 
 def render(tabla: Tabla, formato: str) -> tuple[bytes, str, str]:
     """Devuelve (contenido, media_type, extensión) para el formato pedido."""
+    if formato == "csv":
+        return render_csv(tabla), "text/csv; charset=utf-8", "csv"
     if formato == "excel":
         return (
             render_excel(tabla),
