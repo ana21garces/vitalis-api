@@ -103,6 +103,17 @@ def test_segunda_encuesta_solo_con_seguimiento_abierto(client, auth_headers, adm
     assert nombres == {"Línea base", "Seguimiento 1"}
 
 
+def test_el_seguimiento_conserva_el_sexo(client, auth_headers, admin_headers):
+    """En un seguimiento no se vuelven a pedir los demográficos, así que la
+    respuesta llega sin sexo: el que ya tenía la persona no debe borrarse."""
+    client.post(ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, "sexo": "masculino"}, headers=auth_headers)
+    _programar(client, admin_headers)
+    assert _responder(client, auth_headers).status_code == 201
+
+    perfil = client.get("/api/v1/users/me", headers=auth_headers).json()
+    assert perfil["sexo"] == "masculino"
+
+
 def test_no_se_responde_dos_veces_la_misma_medicion(client, auth_headers, admin_headers):
     _responder(client, auth_headers)
     _programar(client, admin_headers)

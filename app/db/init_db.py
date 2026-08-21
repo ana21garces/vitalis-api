@@ -35,7 +35,12 @@ def init_db() -> None:
         conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS tipo_usuario VARCHAR(50)"
         ))
-    print("[OK] Columnas facultad y tipo_usuario verificadas", flush=True)
+        # El sexo se pedía en la encuesta pero no se guardaba en ninguna parte.
+        # Queda NULL en quienes respondieron antes de esta columna.
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS sexo VARCHAR(20)"
+        ))
+    print("[OK] Columnas facultad, tipo_usuario y sexo verificadas", flush=True)
 
     # Migración: normaliza role a minúsculas.
     # El SAEnum original guardaba el nombre del miembro ("STUDENT") en vez de su

@@ -142,7 +142,7 @@ def construir_usuarios(db: Session, rol: str = "todos") -> Tabla:
     # «Origen» distingue las cuentas creadas por el administrador (is_verified,
     # nacen verificadas) de las que se registraron solas por el formulario. No
     # hay verificación de correo, así que ese es el único significado real.
-    base = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Rol",
+    base = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Sexo", "Rol",
             "Origen", "Activo", "Fecha de registro", "Hizo encuesta",
             "Última encuesta", "Índice global", "Nivel global"]
     cols_dim = []
@@ -156,7 +156,7 @@ def construir_usuarios(db: Session, rol: str = "todos") -> Tabla:
         ind_g, niv_g = _indice_nivel(enc, "global")
         fila = [
             u.full_name, u.email, u.facultad or "", u.program or "",
-            u.tipo_usuario or "", ROLE_LABELS.get(u.role, u.role),
+            u.tipo_usuario or "", u.sexo or "", ROLE_LABELS.get(u.role, u.role),
             "Admin" if u.is_verified else "Registro", "Sí" if u.is_active else "No",
             _fecha(u.created_at), "Sí" if enc else "No",
             _fecha(enc.fecha_respuesta) if enc else "", ind_g, niv_g,
@@ -167,7 +167,7 @@ def construir_usuarios(db: Session, rol: str = "todos") -> Tabla:
         filas.append(fila)
 
     # El PDF muestra el resumen; el detalle por dimensión queda en el Excel.
-    cols_pdf = [0, 1, 2, 3, 4, 5, 6, 9, 12]  # hasta "Nivel global"
+    cols_pdf = [0, 1, 2, 3, 4, 5, 6, 7, 10, 13]  # hasta "Nivel global"
     etiqueta_rol = {"todos": "todos los roles", "usuarios": "solo usuarios",
                     "profesionales": "solo profesionales"}[rol]
     return Tabla(
@@ -217,7 +217,7 @@ def construir_participacion(db: Session, segmento: str = "todas") -> Tabla:
             return n == 0
         return True
 
-    columnas = ["Nombre", "Email", "Facultad", "Programa", "Tipo",
+    columnas = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Sexo",
                 "Encuestas completadas", "Hizo inicial", "Seguimientos",
                 "Última encuesta", "Índice global actual", "Nivel global actual"]
 
@@ -231,7 +231,7 @@ def construir_participacion(db: Session, segmento: str = "todas") -> Tabla:
         seguimientos = max(0, n - 1)
         filas.append([
             u.full_name, u.email, u.facultad or "", u.program or "",
-            u.tipo_usuario or "", str(n), "Sí" if n >= 1 else "No",
+            u.tipo_usuario or "", u.sexo or "", str(n), "Sí" if n >= 1 else "No",
             str(seguimientos), _fecha(enc.fecha_respuesta) if enc else "",
             ind_g, niv_g,
         ])
@@ -272,7 +272,7 @@ def construir_progresion(db: Session, dimension: str = "global", nivel: str | No
     # global cuando se piden todas o el global.
     clave_filtro = ambitos[-1][0] if dimension not in ("global", "todas") else "global"
 
-    base = ["Nombre", "Email", "Facultad", "Programa"]
+    base = ["Nombre", "Email", "Facultad", "Programa", "Sexo"]
     cols_dim = []
     for _, etiqueta in ambitos:
         cols_dim += [f"{etiqueta}: nivel inicial", f"{etiqueta}: índice inicial",
@@ -290,7 +290,7 @@ def construir_progresion(db: Session, dimension: str = "global", nivel: str | No
             _, niv_actual_filtro = _indice_nivel(ult_enc, clave_filtro)
             if niv_actual_filtro != nivel:
                 continue
-        fila = [u.full_name, u.email, u.facultad or "", u.program or ""]
+        fila = [u.full_name, u.email, u.facultad or "", u.program or "", u.sexo or ""]
         for clave, _ in ambitos:
             ind_b, niv_b = _indice_nivel(base_enc, clave)
             ind_a, niv_a = _indice_nivel(ult_enc, clave)
@@ -302,7 +302,7 @@ def construir_progresion(db: Session, dimension: str = "global", nivel: str | No
     cols_pdf = None
     nota = None
     if dimension == "todas":
-        cols_pdf = [0, 1, 2, 3, 4, 5, 6, 7, 8]  # base + primer ámbito (Global)
+        cols_pdf = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  # base + primer ámbito (Global)
         nota = "El detalle por cada dimensión está disponible en la versión Excel."
 
     etiqueta_dim = "todas las dimensiones" if dimension == "todas" else (
