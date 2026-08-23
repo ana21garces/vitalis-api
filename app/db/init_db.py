@@ -9,6 +9,7 @@ from app.models.encuesta_hplp import EncuestaHplp  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.notificacion import Notificacion  # noqa: F401
 from app.models.ciclo_medicion import CicloMedicion  # noqa: F401
+from app.models.sesion import Sesion  # noqa: F401
 
 
 def init_db() -> None:
