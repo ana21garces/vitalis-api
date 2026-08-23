@@ -175,6 +175,8 @@ class TarjetaRecomendacion(BaseModel):
     tecnica: str
     objetivo: str
     instrucciones: List[str]
+    tipo_actividad: str = "checklist_simple"
+    config_actividad: dict | None = None
 
 
 # ── Vista Capellán: Psicología Positiva ──────────────────────────────────────

@@ -41,6 +41,10 @@ _REC = {
             "Ubica los síntomas en el semáforo de síntomas para definir si requieres atención inmediata: Verde (estado óptimo), Amarillo/Naranja (alerta temprana) o Rojo (urgencia).",
             "Lleva la bitácora de escaneo a tu consulta médica e informa al médico los registros que hiciste.",
         ],
+        "tipo_actividad": "matriz",
+        "config_actividad": {
+            "cuadrantes": ["Verde (estado óptimo)", "Amarillo/Naranja (alerta temprana)", "Rojo (urgencia)"],
+        },
     },
     9: {
         "tecnica": "Alfabetización en salud",
@@ -59,6 +63,8 @@ _REC = {
             "Utiliza la técnica de feedback: explícale a tu médico lo que entendiste de las indicaciones para que pueda corregir errores.",
             "No te retires de la consulta hasta tener todas las dudas claras y las indicaciones entendidas.",
         ],
+        "tipo_actividad": "lista",
+        "config_actividad": {"placeholder": "Duda o pregunta para tu próxima consulta"},
     },
     22: {
         "tecnica": "Triangulación de criterio médico",
@@ -128,6 +134,8 @@ def obtener_recomendaciones_rs(encuesta: EncuestaHplp) -> list[dict]:
             "tecnica": rec["tecnica"],
             "objetivo": rec["objetivo"],
             "instrucciones": rec["instrucciones"],
+            "tipo_actividad": rec.get("tipo_actividad", "checklist_simple"),
+            "config_actividad": rec.get("config_actividad"),
         })
     tarjetas.sort(key=lambda t: PRIORIDAD_NIVEL[t["nivel"]])
     return tarjetas

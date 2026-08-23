@@ -278,6 +278,17 @@ class GamificacionService:
             progreso=progreso_de_usuario(user),
         )
 
+    def otorgar_xp_externo(
+        self,
+        user: User,
+        xp: int,
+        motivo: str,
+        referencia_id: str | None = None,
+    ) -> None:
+        """Punto de entrada público para que otros servicios (fuera del flujo
+        de misiones/racha) otorguen XP reutilizando el mismo mecanismo."""
+        self._otorgar_xp(user, xp, motivo, referencia_id)
+
     def otorgar_bonus_encuesta(self, user: User, encuesta_id: int) -> bool:
         ref = str(encuesta_id)
         if self.repo.ya_otorgo_motivo(user.id, "encuesta", ref):
