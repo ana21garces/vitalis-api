@@ -187,6 +187,9 @@ def guardar_encuesta(
     puntajes = calcular_puntajes(payload)
     encuesta = repo.crear_encuesta(db, payload, puntajes, current_user.id, ciclo.id)
 
+    from app.services.gamificacion_service import GamificacionService
+    GamificacionService(db).otorgar_bonus_encuesta(current_user, encuesta.id)
+
     return EncuestaResponse(
         encuesta_id=encuesta.id,
         usuario_id=str(current_user.id),

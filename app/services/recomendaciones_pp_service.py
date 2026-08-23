@@ -32,6 +32,13 @@ ITEM_FIELDS = {
 }
 
 # Tabla de recomendaciones elaboradas por el profesional — una por pregunta × nivel
+#
+# "tipo_actividad" clasifica qué plantilla de evidencia usa el frontend para
+# esta ficha (diario, registro_numerico, matriz, lista, habito_calendario o
+# checklist_simple, que es el valor por defecto si se omite el campo).
+# "config_actividad" trae los parámetros que esa plantilla necesita; se omite
+# cuando el valor por defecto de la plantilla (ej. usar el objetivo como
+# prompt del diario) ya es suficiente.
 RECOMENDACIONES: dict[int, dict[str, dict]] = {
     6: {
         "POBRE": {
@@ -43,6 +50,15 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Crea una tabla semanal sencilla y marca con X cada día que cumples ese comportamiento. No rompas la cadena.",
                 "Al final de la semana reflexiona: ¿qué hábitos te suman? ¿cuáles te restan? ¿qué creencias limitantes aparecieron?",
             ],
+            "tipo_actividad": "matriz",
+            "config_actividad": {
+                "cuadrantes": [
+                    "Urgente + Importante",
+                    "Importante + No urgente",
+                    "Urgente + No importante",
+                    "Ni urgente ni importante",
+                ],
+            },
         },
         "MODERADO": {
             "tecnica": "Cuadro de Hábitos con Identidad",
@@ -53,6 +69,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Elige 2 hábitos que quieras reforzar y 1 que quieras eliminar. Lleva registro semanal con el cuadro de hábitos.",
                 "Revisa el avance cada domingo: ¿estoy actuando como la persona que quiero ser?",
             ],
+            "tipo_actividad": "habito_calendario",
         },
         "BUENO": {
             "tecnica": "Reflexión de Mantenimiento",
@@ -61,6 +78,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Continúa con tu cuadro de hábitos actual y añade un reto nuevo cada mes.",
                 "Comparte tus avances con alguien de confianza para reforzar el compromiso.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
     12: {
@@ -73,6 +91,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Si no tienes claro tu propósito, escribe una frase provisional: 'Creo que estoy aquí para...' y ajústala con el tiempo.",
                 "Hazlo durante 21 días consecutivos y revisa si tu percepción de sentido ha cambiado.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Escribe 3 cosas específicas por las que estás agradecido hoy, y qué dicen de tu propósito."},
         },
         "MODERADO": {
             "tecnica": "Diario de Gratitud con Vinculación de Propósito",
@@ -82,6 +102,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Para cada una, responde: ¿qué dice esto sobre quién soy o hacia dónde voy?",
                 "Una vez a la semana relee entradas anteriores e identifica patrones: ¿qué te da más sentido consistentemente?",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Escribe 3 gratitudes de hoy y qué dicen sobre quién eres o hacia dónde vas."},
         },
         "BUENO": {
             "tecnica": "Gratitud Express",
@@ -90,6 +112,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Continúa el diario de gratitud con al menos 3 entradas semanales.",
                 "Cada mes escribe una reflexión sobre cómo tu propósito ha evolucionado.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Tu entrada de gratitud de hoy."},
         },
     },
     19: {
@@ -102,6 +126,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "En tu cuadro de hábitos, añade la columna 'Pensamiento Positivo del Día' y marca si lo cumpliste.",
                 "Si el pensamiento negativo domina, escríbelo y al lado escribe una perspectiva alternativa posible.",
             ],
+            "tipo_actividad": "habito_calendario",
         },
         "MODERADO": {
             "tecnica": "Cuadro de Hábitos para el Optimismo — Nivel Intermedio",
@@ -111,6 +136,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Al final de la semana evalúa: ¿qué salió bien? ¿qué aprendiste de lo que no salió como esperabas?",
                 "Lleva registro en el cuadro de hábitos y celebra las rachas de pensamiento positivo.",
             ],
+            "tipo_actividad": "habito_calendario",
         },
         "BUENO": {
             "tecnica": "Visión a Futuro",
@@ -119,6 +145,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Escribe una carta a ti mismo desde el futuro (1 año) describiendo cómo es tu vida.",
                 "Léela cada mes y ajusta tu perspectiva actual.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Escríbete una carta desde el futuro (1 año) describiendo cómo es tu vida."},
         },
     },
     25: {
@@ -132,6 +160,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Si surge autocrítica, nómbrala sin juzgarla: 'Noto que me cuesta aceptar esto' y continúa de todas formas.",
                 "Practica diariamente por 2 semanas y registra cómo te sientes antes y después.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "¿Qué valoraste de ti mismo hoy? ¿Cómo te sentiste antes y después del ejercicio?"},
         },
         "MODERADO": {
             "tecnica": "Carta de Autoaceptación",
@@ -141,6 +171,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Incluye al menos 3 cualidades que otros valoran de ti y 1 logro reciente del que te sientas orgulloso.",
                 "Léela en voz alta frente al espejo 1 vez por semana.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Escríbete una carta reconociendo tus fortalezas, esfuerzos y logros."},
         },
         "BUENO": {
             "tecnica": "Afirmaciones de Mantenimiento",
@@ -149,6 +181,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Elige 3 afirmaciones sobre ti mismo y repítelas cada mañana.",
                 "Actualiza las afirmaciones mensualmente según tu crecimiento.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
     31: {
@@ -161,6 +194,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Ejemplo: Sueño 'quiero ser más espiritual' → Meta SMART: 'Voy a leer 20 minutos cada mañana durante los próximos 3 meses'.",
                 "Pega tus metas en un lugar visible y revísalas cada semana.",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Ej: Voy a leer 20 minutos cada mañana durante los próximos 3 meses"},
         },
         "MODERADO": {
             "tecnica": "Metas SMART a Largo Plazo",
@@ -170,6 +205,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Añade UNA meta a largo plazo (1–3 años) por área de vida, siguiendo el formato SMART.",
                 "Crea un tablero o mapa visual con tus sueños y metas. Actualízalo trimestralmente.",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Meta a largo plazo (1-3 años) por área de vida"},
         },
         "BUENO": {
             "tecnica": "Revisión Trimestral de Metas",
@@ -178,6 +215,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Revisa tus metas cada 3 meses: ¿qué avanzaste? ¿qué ajustas? ¿qué celebras?",
                 "Añade nuevas metas según el crecimiento personal que estás experimentando.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
     37: {
@@ -190,6 +228,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Oración/Reflexión con los Sentidos (5–10 min): Percibe el entorno: el silencio, la luz, el aroma del aire. Escribe y da gracias por lo que has visto, oído y sentido.",
                 "Hazlo cada mañana por 21 días y anota cómo cambia tu energía y actitud durante el día.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Cuenta cómo te fue con tu rutina de hoy: qué leíste, qué percibiste, por qué diste gracias."},
         },
         "MODERADO": {
             "tecnica": "Desafío Diario Pequeño",
@@ -199,6 +239,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Al final del día evalúa: ¿cómo me hizo sentir? ¿qué aprendí?",
                 "Mantén el registro en tu cuadro de hábitos.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
         "BUENO": {
             "tecnica": "Reto Semanal de Crecimiento",
@@ -207,6 +248,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Elige un reto semanal que esté fuera de tu zona de confort.",
                 "Documenta qué aprendiste de ti mismo al completarlo.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
     44: {
@@ -219,6 +261,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Después de hacerlo, reflexiona: ¿qué sentí? ¿esto refleja lo que es importante para mí?",
                 "Repite semanalmente y observa cómo van apareciendo tus valores más claros.",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Persona a ayudar y acción concreta"},
         },
         "MODERADO": {
             "tecnica": "Mapa de Valores",
@@ -228,6 +272,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Revisa tu semana pasada: ¿actuaste coherente con esos valores? ¿dónde no?",
                 "Define 1 acción concreta esta semana que refleje cada uno de tus valores principales.",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Ej: familia, honestidad, crecimiento, fe, salud"},
         },
         "BUENO": {
             "tecnica": "Auditoría de Valores",
@@ -236,6 +282,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Una vez al mes, revisa si tus actividades y decisiones recientes reflejan lo que declaras que es importante para ti.",
                 "Ajusta donde haya desalineación.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
     49: {
@@ -248,6 +295,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Oración con los sentidos (5–10 min): Ora percibiendo el entorno. Da gracias por aquello que puedes ver, tocar y oír. Si quieres, escríbelo como una carta a Dios.",
                 "Practica esta rutina 5 días a la semana y lleva un registro simple de cómo te sentiste después.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Escribe tu carta a Dios o tu reflexión de la rutina de hoy."},
         },
         "MODERADO": {
             "tecnica": "Diario Espiritual",
@@ -257,6 +306,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Añade una petición y una acción de gracias específica.",
                 "Una vez a la semana relee tus anotaciones y reflexiona sobre cómo ha evolucionado tu conexión.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "¿Dónde sentiste la presencia de Dios hoy? Añade una petición y una acción de gracias."},
         },
         "BUENO": {
             "tecnica": "Profundización Espiritual",
@@ -265,6 +316,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Incorpora un estudio bíblico o espiritual más profundo (libro, comunidad, retiro).",
                 "Comparte tu fe o práctica espiritual con alguien cercano.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
     52: {
@@ -278,6 +330,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Después de hacerla, responde: ¿qué aprendí de mí mismo? ¿fue tan difícil como pensaba?",
                 "Avanza al siguiente reto la semana siguiente. Documenta el proceso.",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Reto que te genera curiosidad o temor"},
         },
         "MODERADO": {
             "tecnica": "Reto Mensual de Zona de Confort",
@@ -287,6 +341,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Al completarla, evalúa: ¿qué aprendí de mí mismo? ¿cómo cambió mi perspectiva?",
                 "Lleva un diario de retos completados para evidenciar tu crecimiento.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "¿Qué reto probaste este mes? ¿Qué aprendiste de ti mismo?"},
         },
         "BUENO": {
             "tecnica": "Proyecto de Crecimiento Personal",
@@ -295,6 +351,7 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Define UN proyecto de crecimiento personal para los próximos 6 meses (aprender un idioma, emprender, viajar, estudiar algo nuevo).",
                 "Establece metas SMART para ese proyecto y haz seguimiento mensual.",
             ],
+            "tipo_actividad": "checklist_simple",
         },
     },
 }
@@ -324,6 +381,8 @@ def obtener_recomendaciones_pp(encuesta: EncuestaHplp) -> list[dict]:
             "tecnica": rec["tecnica"],
             "objetivo": rec["objetivo"],
             "instrucciones": rec["instrucciones"],
+            "tipo_actividad": rec.get("tipo_actividad", "checklist_simple"),
+            "config_actividad": rec.get("config_actividad"),
         })
     tarjetas.sort(key=lambda t: PRIORIDAD_NIVEL[t["nivel"]])
     return tarjetas

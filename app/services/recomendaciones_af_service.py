@@ -2,6 +2,10 @@
 Servicio de recomendaciones de Actividad Física.
 Tabla estática de 27 tarjetas (9 preguntas × 3 niveles) elaboradas por el profesional.
 EXCELENTE no recibe recomendación.
+
+Todas las fichas usan "tipo_actividad": "registro_numerico" (duración,
+esfuerzo percibido, pasos o frecuencia cardíaca según la pregunta) — ver
+"config_actividad.unidad" para lo que el frontend debe pedir.
 """
 from app.models.encuesta_hplp import EncuestaHplp
 
@@ -32,6 +36,19 @@ ITEM_FIELDS = {
     35: "af_item_35",
     42: "af_item_42",
     47: "af_item_47",
+}
+
+# Unidad de registro por pregunta (misma para los 3 niveles).
+_UNIDAD_POR_PREGUNTA = {
+    4:  "minutos",
+    10: "minutos",
+    16: "minutos",
+    17: "minutos",
+    23: "minutos",
+    29: "repeticiones",
+    35: "pasos",
+    42: "pulsaciones por minuto",
+    47: "minutos en zona objetivo",
 }
 
 RECOMENDACIONES: dict[int, dict[str, dict]] = {
@@ -346,6 +363,12 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
     },
 }
 
+# Agrega tipo_actividad/config_actividad a las 27 fichas sin repetirlo a mano.
+for _num_q, _por_nivel in RECOMENDACIONES.items():
+    for _ficha in _por_nivel.values():
+        _ficha["tipo_actividad"] = "registro_numerico"
+        _ficha["config_actividad"] = {"unidad": _UNIDAD_POR_PREGUNTA[_num_q]}
+
 PRIORIDAD_NIVEL = {"POBRE": 0, "MODERADO": 1, "BUENO": 2, "EXCELENTE": 3}
 
 
@@ -370,6 +393,8 @@ def obtener_recomendaciones_af(encuesta: EncuestaHplp) -> list[dict]:
             "tecnica": rec["tecnica"],
             "objetivo": rec["objetivo"],
             "instrucciones": rec["instrucciones"],
+            "tipo_actividad": rec.get("tipo_actividad", "checklist_simple"),
+            "config_actividad": rec.get("config_actividad"),
         })
     tarjetas.sort(key=lambda t: PRIORIDAD_NIVEL[t["nivel"]])
     return tarjetas

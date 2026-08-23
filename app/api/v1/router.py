@@ -6,8 +6,10 @@ from app.api.v1.endpoints import (
     ciclos,
     encuesta_hplp,
     estadisticas,
+    gamificacion,
     notificaciones,
     reportes,
+    seguimiento_recomendaciones,
     users,
 )
 
@@ -21,3 +23,5 @@ api_router.include_router(notificaciones.router)
 api_router.include_router(ciclos.router)
 api_router.include_router(reportes.router)
 api_router.include_router(auditoria.router)
+api_router.include_router(gamificacion.router)
+api_router.include_router(seguimiento_recomendaciones.router)

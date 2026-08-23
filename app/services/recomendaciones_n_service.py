@@ -182,6 +182,8 @@ def obtener_recomendaciones_n(encuesta: EncuestaHplp) -> list[dict]:
             "tecnica": rec["tecnica"],
             "objetivo": rec["objetivo"],
             "instrucciones": rec["instrucciones"],
+            "tipo_actividad": rec.get("tipo_actividad", "checklist_simple"),
+            "config_actividad": rec.get("config_actividad"),
         })
     tarjetas.sort(key=lambda t: PRIORIDAD_NIVEL[t["nivel"]])
     return tarjetas
