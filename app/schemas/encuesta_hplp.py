@@ -19,6 +19,7 @@ class EncuestaCreate(BaseModel):
     # Opcional en la API para no romper a quien ya responde sin él; el
     # formulario sí lo exige. Si llega vacío, se conserva el que ya tuviera.
     sexo: Sexo | None = None
+    consentimiento_aceptado_en: datetime | None = None
 
     # Relaciones Interpersonales — 9 ítems (campo: ri_)
     ri_item_01: Val

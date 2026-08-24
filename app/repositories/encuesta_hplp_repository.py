@@ -27,6 +27,7 @@ def crear_encuesta(
     encuesta = EncuestaHplp(
         usuario_id=usuario_id,
         ciclo_id=ciclo_id,
+        consentimiento_aceptado_en=data.consentimiento_aceptado_en,
 
         # RI
         ri_item_01=data.ri_item_01, ri_item_07=data.ri_item_07,

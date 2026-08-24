@@ -86,7 +86,11 @@ def init_db() -> None:
         conn.execute(text(
             "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS ciclo_id INTEGER"
         ))
-    print("[OK] Columna ciclo_id verificada", flush=True)
+        conn.execute(text(
+            "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS "
+            "consentimiento_aceptado_en TIMESTAMPTZ"
+        ))
+    print("[OK] Columnas ciclo_id y consentimiento_aceptado_en verificadas", flush=True)
 
     # Las encuestas que ya existían son la línea base: se crea el ciclo si hace
     # falta y se les asigna. Sin esto quedarían sin medición y no entrarían en
