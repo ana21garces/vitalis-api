@@ -109,6 +109,10 @@ def _fecha(dt: datetime | None) -> str:
     return dt.strftime("%Y-%m-%d") if dt else ""
 
 
+def _fecha_hora(dt: datetime | None) -> str:
+    return dt.strftime("%Y-%m-%d %H:%M") if dt else "Sin registro"
+
+
 def _indice_nivel(enc: EncuestaHplp | None, clave: str) -> tuple[str, str]:
     """(índice, nivel) de una encuesta para el ámbito `clave` ('global' o prefijo)."""
     if enc is None:
@@ -219,7 +223,8 @@ def construir_participacion(db: Session, segmento: str = "todas") -> Tabla:
 
     columnas = ["Nombre", "Email", "Facultad", "Programa", "Tipo", "Sexo",
                 "Encuestas completadas", "Hizo inicial", "Seguimientos",
-                "Última encuesta", "Índice global actual", "Nivel global actual"]
+                "Última encuesta", "Consentimiento aceptado",
+                "Índice global actual", "Nivel global actual"]
 
     filas = []
     for u in usuarios:
@@ -233,6 +238,7 @@ def construir_participacion(db: Session, segmento: str = "todas") -> Tabla:
             u.full_name, u.email, u.facultad or "", u.program or "",
             u.tipo_usuario or "", u.sexo or "", str(n), "Sí" if n >= 1 else "No",
             str(seguimientos), _fecha(enc.fecha_respuesta) if enc else "",
+            _fecha_hora(enc.consentimiento_aceptado_en) if enc else "",
             ind_g, niv_g,
         ])
 
