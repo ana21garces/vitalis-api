@@ -12,6 +12,7 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserResponse
 from app.repositories.user_repository import UserRepository
+from app.repositories import sesion_repository
 from app.core.security import (
     hash_password,
     verify_password,
@@ -29,6 +30,7 @@ REFRESH_INVALIDO = HTTPException(
 class AuthService:
 
     def __init__(self, db: Session):
+        self.db = db
         self.repo = UserRepository(db)
 
     def register(self, data: RegisterRequest) -> UserResponse:
@@ -50,7 +52,7 @@ class AuthService:
         created_user = self.repo.create(new_user)
         return UserResponse.model_validate(created_user)
 
-    def login(self, data: LoginRequest) -> TokenResponse:
+    def login(self, data: LoginRequest, ip: str | None = None) -> TokenResponse:
         # Verificar que el usuario existe
         user = self.repo.get_by_email(data.email)
         if not user:
@@ -76,6 +78,9 @@ class AuthService:
         # Actualizar último login
         user.last_login_at = datetime.now(timezone.utc)
         self.repo.update(user)
+
+        # Abrir una sesión para la auditoría de accesos.
+        sesion_repository.crear(self.db, user.id, ip)
 
         # Generar tokens
         token_data = {"sub": str(user.id), "email": user.email, "role": user.role}

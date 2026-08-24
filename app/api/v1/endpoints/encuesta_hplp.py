@@ -1012,6 +1012,7 @@ def perfiles_salud(
             facultad=usuario.facultad,
             programa=usuario.program,
             tipo_usuario=usuario.tipo_usuario,
+            avatar_url=usuario.avatar_url,
             fecha=encuesta.fecha_respuesta,
             resultados=_build_resultados(encuesta),
         )

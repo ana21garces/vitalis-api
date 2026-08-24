@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_db
+from app.core.dependencies import get_db, get_current_user
+from app.models.user import User
+from app.repositories import sesion_repository
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
@@ -17,6 +19,14 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
+def _ip_cliente(request: Request) -> str | None:
+    """IP real del cliente. Detrás de un proxy la trae `X-Forwarded-For`."""
+    reenviada = request.headers.get("x-forwarded-for")
+    if reenviada:
+        return reenviada.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     service = AuthService(db)
@@ -24,9 +34,30 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
+def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     service = AuthService(db)
-    return service.login(data)
+    return service.login(data, ip=_ip_cliente(request))
+
+
+@router.post("/heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+def heartbeat(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Latido: la app lo llama cada tanto para marcar que el usuario sigue
+    activo. Refresca la última actividad de su sesión abierta."""
+    sesion_repository.tocar(db, current_user.id)
+    return None
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cierra la sesión abierta del usuario, para la auditoría de accesos."""
+    sesion_repository.cerrar(db, current_user.id)
+    return None
 
 
 @router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)

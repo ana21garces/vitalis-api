@@ -9,6 +9,7 @@ from app.models.encuesta_hplp import EncuestaHplp  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.notificacion import Notificacion  # noqa: F401
 from app.models.ciclo_medicion import CicloMedicion  # noqa: F401
+from app.models.sesion import Sesion  # noqa: F401
 from app.models.gamificacion import MisionDiaria, XpEvento  # noqa: F401
 from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento, SeguimientoRecomendacion  # noqa: F401
 
@@ -85,7 +86,11 @@ def init_db() -> None:
         conn.execute(text(
             "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS ciclo_id INTEGER"
         ))
-    print("[OK] Columna ciclo_id verificada", flush=True)
+        conn.execute(text(
+            "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS "
+            "consentimiento_aceptado_en TIMESTAMPTZ"
+        ))
+    print("[OK] Columnas ciclo_id y consentimiento_aceptado_en verificadas", flush=True)
 
     # Las encuestas que ya existían son la línea base: se crea el ciclo si hace
     # falta y se les asigna. Sin esto quedarían sin medición y no entrarían en

@@ -24,7 +24,7 @@ from app.data.tareas_catalogo import (
     TareaDef,
 )
 from app.models.gamificacion import MisionDiaria, XpEvento
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.repositories import encuesta_hplp_repository as encuesta_repo
 from app.repositories.gamificacion_repository import GamificacionRepository
 from app.repositories.user_repository import UserRepository
@@ -170,6 +170,11 @@ def _mision_a_response(mision: MisionDiaria) -> MisionResponse:
     )
 
 
+def es_usuario(user: User) -> bool:
+    """La gamificación es solo para el rol usuario (student)."""
+    return user.role == UserRole.STUDENT.value
+
+
 class GamificacionService:
 
     def __init__(self, db: Session):
@@ -178,6 +183,15 @@ class GamificacionService:
         self.users = UserRepository(db)
 
     def obtener_misiones_hoy(self, user: User) -> MisionesHoyResponse:
+        if not es_usuario(user):
+            return MisionesHoyResponse(
+                fecha=hoy_bogota(),
+                misiones=[],
+                completadas_hoy=0,
+                total_hoy=0,
+                bonus_disponible=0,
+                progreso=progreso_de_usuario(user),
+            )
         fecha = hoy_bogota()
         misiones = self.repo.obtener_misiones_dia(user.id, fecha)
         if not misiones:
@@ -200,6 +214,8 @@ class GamificacionService:
         motivo: str,
         referencia_id: str | None = None,
     ) -> None:
+        if not es_usuario(user):
+            return
         if xp <= 0:
             return
         user.total_xp += xp
@@ -238,6 +254,8 @@ class GamificacionService:
         return bonus
 
     def completar_mision(self, user: User, mision_id: uuid.UUID) -> CompletarMisionResponse:
+        if not es_usuario(user):
+            raise ValueError("La gamificación es solo para usuarios")
         mision = self.repo.obtener_mision(mision_id, user.id)
         if not mision:
             raise ValueError("Misión no encontrada")
