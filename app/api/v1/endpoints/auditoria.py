@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, requiere_admin
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories import sesion_repository
 from app.schemas.auditoria import AuditoriaItem, AuditoriaResponse, AuditoriaResumen
 from app.services import reportes_service as rep
@@ -16,8 +16,7 @@ TAM_PAGINA = 15
 
 
 def _tipo(role: str) -> str:
-    """Bucket para la columna Tipo: usuario final vs. cuenta profesional."""
-    return "Usuario" if role == UserRole.STUDENT.value else "Profesional"
+    return rep.ROLE_LABELS.get(role, role)
 
 
 def _fecha(valor: str | None) -> date | None:
