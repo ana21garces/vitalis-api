@@ -119,6 +119,7 @@ class PerfilSaludItem(BaseModel):
     facultad: str | None
     programa: str | None
     tipo_usuario: str | None
+    avatar_url: str | None = None
     fecha: datetime
     resultados: ResultadosEncuesta
 
