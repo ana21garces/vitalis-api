@@ -64,6 +64,8 @@ _FICHAS = {
             "Si fríes en casa, no reutilices el aceite más de una o dos veces: reutilizarlo daña sus componentes y aumenta el daño metabólico.",
             "Aumenta gradualmente el número de comidas no fritas hasta que sean la mayoría de tu semana.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "comidas fritas hoy"},
     },
     8: {
         "tecnica": "Reducción progresiva de azúcares añadidos",
@@ -74,6 +76,8 @@ _FICHAS = {
             "Reserva los alimentos con azúcar añadida para ocasiones especiales, no para el consumo diario.",
             "Sustituye una bebida azucarada al día por agua o una infusión sin azúcar.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones con azúcar añadida hoy"},
     },
     14: {
         "tecnica": "Plato balanceado: carbohidratos integrales",
@@ -83,6 +87,8 @@ _FICHAS = {
             "Prioriza las versiones integrales (arroz integral, pan integral, avena) sobre las refinadas cuando sea posible.",
             "Ajusta la cantidad según tu nivel de actividad física y tus objetivos; si tienes una condición de salud, consulta con un profesional para adaptar la porción.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones de carbohidratos hoy"},
     },
     21: {
         "tecnica": "Frutas como primera opción para la saciedad",
@@ -93,6 +99,8 @@ _FICHAS = {
             "Prefiere comer la fruta entera en vez de en jugo, para conservar la fibra y la saciedad.",
             "Acompaña una comida principal al día con una porción de fruta.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones de fruta hoy"},
     },
     27: {
         "tecnica": "Vegetales en cada comida",
@@ -102,6 +110,8 @@ _FICHAS = {
             "Varía la preparación (ensaladas, salteados, sopas) para no perder la costumbre.",
             "Aprovecha los vegetales como opción de snack entre comidas.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones de vegetales hoy"},
     },
     33: {
         "tecnica": "Lácteos como refrigerio saludable",
@@ -111,6 +121,8 @@ _FICHAS = {
             "Al elegir yogur, prefiere uno sin azúcar añadida y, si es posible, con probióticos.",
             "Combina los lácteos con otros alimentos (frutas, cereales) para variar su consumo.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones de lácteos hoy"},
     },
     39: {
         "tecnica": "Combinación de leguminosas con otros grupos",
@@ -120,6 +132,8 @@ _FICHAS = {
             "Combina siempre la leguminosa con un carbohidrato y, cuando sea posible, con un alimento de origen animal, para mejorar la absorción de la proteína.",
             "Recuerda que las leguminosas por sí solas no cubren el requerimiento proteico completo del día.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones de proteína vegetal hoy"},
     },
     40: {
         "tecnica": "Porción diaria de proteína animal",
@@ -129,6 +143,8 @@ _FICHAS = {
             "Ajusta la porción entre 50 y 90 gramos según tu objetivo o necesidad nutricional.",
             "Varía la fuente de proteína animal a lo largo de la semana (pescado, pollo, huevo, carnes rojas magras) en vez de repetir siempre la misma.",
         ],
+        "tipo_actividad": "registro_numerico",
+        "config_actividad": {"unidad": "porciones de proteína animal hoy"},
     },
     46: {
         "tecnica": "Lectura del etiquetado y los sellos de advertencia",
@@ -139,6 +155,8 @@ _FICHAS = {
             "No te quedes solo con los sellos: revisa también la lista de ingredientes y la información nutricional en letra pequeña.",
             "Si tienes una enfermedad crónica no transmisible, ten especial cuidado con los productos que traen varios sellos.",
         ],
+        "tipo_actividad": "lista",
+        "config_actividad": {"placeholder": "Producto empacado que revisaste hoy..."},
     },
     51: {
         "tecnica": "Desayuno balanceado diario",
@@ -149,6 +167,10 @@ _FICHAS = {
             "Evita saltarte el desayuno con fines de bajar de peso: alterar así el metabolismo tiende a generar más ganancia de peso, no menos.",
             "Prepara la noche anterior algo simple (avena remojada, fruta picada) si las mañanas son apuradas.",
         ],
+        "tipo_actividad": "diario",
+        "config_actividad": {
+            "prompt": "¿Qué desayunaste hoy? Menciona los grupos de alimentos que incluiste (cereal/tubérculo, fruta, lácteo, proteína).",
+        },
     },
 }
 

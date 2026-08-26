@@ -44,6 +44,7 @@ _REC = {
         "tipo_actividad": "matriz",
         "config_actividad": {
             "cuadrantes": ["Verde (estado óptimo)", "Amarillo/Naranja (alerta temprana)", "Rojo (urgencia)"],
+            "campos": ["Síntoma", "Duración", "Intensidad"],
         },
     },
     9: {
@@ -54,6 +55,10 @@ _REC = {
             "Busca información sobre el tema en fuentes oficiales (OMS, revistas científicas, boletines informativos). Puedes leer un artículo, aprender una receta saludable o realizar una rutina de ejercicio nueva.",
             "Pon en práctica lo aprendido y regístralo en la app.",
         ],
+        "tipo_actividad": "matriz",
+        "config_actividad": {
+            "campos": ["Tema de esta semana", "Qué aprendiste o hiciste"],
+        },
     },
     15: {
         "tecnica": "Pregunta – Respuesta – Confirmación",
@@ -93,6 +98,7 @@ _REC = {
             "Reporta en la app si encuentras un hallazgo anormal o si no encuentras cambios.",
             "Si encuentras algo fuera de lo normal, consulta al médico y reporta el hallazgo.",
         ],
+        "tipo_actividad": "autoexamen_corporal",
     },
     41: {
         "tecnica": "Control médico preventivo",
