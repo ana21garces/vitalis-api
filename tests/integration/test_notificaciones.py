@@ -167,7 +167,7 @@ def test_estudiante_acepta_invitacion_y_avisa_al_rol(client, capellan_headers, a
     avisos = [n for n in del_capellan if "Aceptó la invitación" in n["mensaje"]]
     assert len(avisos) == 1
     assert avisos[0]["tipo"] == "cita_aceptada"
-    assert avisos[0]["enlace"].startswith("/dashboard/capellan?alerta=")
+    assert avisos[0]["enlace"].startswith("/dashboard/capellan?reporte=")
 
 
 def test_estudiante_rechaza_y_permite_reinvitar(client, capellan_headers, auth_headers):

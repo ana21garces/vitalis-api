@@ -70,10 +70,15 @@ RUTA_POR_ROL = {
 
 
 def _enlace_historial(rol: str | None, alumno_id) -> str:
-    # Hoy lleva a la persona dentro de la vista de la dimensión; cuando exista el
-    # historial individual descargable (en desarrollo por Ana), se repunta aquí.
+    # Lleva a la persona en el listado de su dimensión (para volver a invitarla).
     ruta = RUTA_POR_ROL.get(rol, "/dashboard")
     return f"{ruta}?alerta={alumno_id}"
+
+
+def _enlace_reporte(rol: str | None, alumno_id) -> str:
+    # Abre el reporte individual para remisión de esa persona en su vista.
+    ruta = RUTA_POR_ROL.get(rol, "/dashboard")
+    return f"{ruta}?reporte={alumno_id}"
 
 
 @router.post("", response_model=NotificacionResponse, status_code=status.HTTP_201_CREATED)
@@ -237,7 +242,11 @@ def responder_invitacion(
         destinatario_id=None,
         mensaje=f"{verbo} la invitación a agendar una cita.",
         rol_destinatario=notificacion.remitente_rol,
-        enlace=_enlace_historial(notificacion.remitente_rol, current_user.id),
+        enlace=(
+            _enlace_reporte(notificacion.remitente_rol, current_user.id)
+            if data.acepta
+            else _enlace_historial(notificacion.remitente_rol, current_user.id)
+        ),
         tipo="cita_aceptada" if data.acepta else "cita_rechazada",
     )
 
