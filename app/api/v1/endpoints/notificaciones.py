@@ -19,6 +19,7 @@ from app.schemas.notificacion import (
     NotificacionCreate,
     NotificacionResponse,
     PreviewResponse,
+    ResponderInvitacion,
     SegmentosResponse,
 )
 
@@ -39,6 +40,40 @@ ROLES_QUE_NOTIFICAN = {
     UserRole.MANEJO_ESTRES,
     UserRole.NUTRICION,
 }
+
+# Cómo se muestra el remitente cuando la notificación se envía desde un rol
+# (el estudiante ve la dimensión, no el nombre de quien la mandó).
+ETIQUETA_REMITENTE_ROL = {
+    UserRole.CAPELLAN.value: "Profesional de Psicología Positiva",
+    UserRole.ACTIVIDAD_FISICA.value: "Profesional de Actividad Física",
+    UserRole.RESPONSABILIDAD_SALUD.value: "Profesional de Responsabilidad en Salud",
+    UserRole.RELACIONES_INTERPERSONALES.value: "Profesional de Relaciones Interpersonales",
+    UserRole.MANEJO_ESTRES.value: "Profesional de Manejo del Estrés",
+    UserRole.NUTRICION.value: "Profesional de Nutrición",
+}
+
+
+def _puede_responder(n) -> bool:
+    """Una invitación a cita (dirigida a un estudiante desde un rol) que el
+    estudiante todavía no ha respondido."""
+    return bool(n.remitente_rol and n.destinatario_id and not n.respuesta)
+
+
+RUTA_POR_ROL = {
+    UserRole.ACTIVIDAD_FISICA.value: "/dashboard/actividad-fisica",
+    UserRole.NUTRICION.value: "/dashboard/nutricion",
+    UserRole.RESPONSABILIDAD_SALUD.value: "/dashboard/responsabilidad-salud",
+    UserRole.RELACIONES_INTERPERSONALES.value: "/dashboard/relaciones-interpersonales",
+    UserRole.MANEJO_ESTRES.value: "/dashboard/manejo-estres",
+    UserRole.CAPELLAN.value: "/dashboard/capellan",
+}
+
+
+def _enlace_historial(rol: str | None, alumno_id) -> str:
+    # Hoy lleva a la persona dentro de la vista de la dimensión; cuando exista el
+    # historial individual descargable (en desarrollo por Ana), se repunta aquí.
+    ruta = RUTA_POR_ROL.get(rol, "/dashboard")
+    return f"{ruta}?alerta={alumno_id}"
 
 
 @router.post("", response_model=NotificacionResponse, status_code=status.HTTP_201_CREATED)
@@ -68,11 +103,24 @@ def enviar_notificacion(
             detail="Solo se puede notificar a estudiantes",
         )
 
-    notificacion = repo.crear(db, current_user.id, destinatario_uuid, data.mensaje)
+    # El admin actúa como el rol de la vista en la que está (data.rol); un
+    # profesional real siempre usa su propio rol, sin importar lo que envíe.
+    if current_user.role == UserRole.ADMIN.value:
+        remitente_rol = data.rol if data.rol in ETIQUETA_REMITENTE_ROL else None
+    else:
+        remitente_rol = current_user.role if current_user.role in ETIQUETA_REMITENTE_ROL else None
+
+    notificacion = repo.crear(
+        db, current_user.id, destinatario_uuid, data.mensaje, remitente_rol=remitente_rol
+    )
     return NotificacionResponse(
         id=notificacion.id,
-        remitente_nombre=current_user.full_name,
+        remitente_nombre=ETIQUETA_REMITENTE_ROL.get(remitente_rol, current_user.full_name),
         mensaje=notificacion.mensaje,
+        enlace=notificacion.enlace,
+        tipo=notificacion.tipo,
+        puede_responder=_puede_responder(notificacion),
+        respuesta=notificacion.respuesta,
         leida=notificacion.leida,
         created_at=notificacion.created_at,
     )
@@ -80,11 +128,14 @@ def enviar_notificacion(
 
 @router.get("", response_model=list[NotificacionResponse])
 def mis_notificaciones(
+    rol: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Notificaciones recibidas por el usuario autenticado, más recientes primero."""
-    notificaciones = repo.listar_por_destinatario(db, current_user.id)
+    """Notificaciones de la campana del usuario, más recientes primero. Incluye
+    las alertas del rol que se está viendo: un profesional ve las de su
+    dimensión; el administrador ve las de la vista en la que entró (`rol`)."""
+    notificaciones = repo.listar_para(db, current_user, rol)
 
     user_repo = UserRepository(db)
     nombres_por_remitente: dict[uuid.UUID, str] = {}
@@ -98,13 +149,35 @@ def mis_notificaciones(
     return [
         NotificacionResponse(
             id=n.id,
-            remitente_nombre=nombre_de(n.remitente_id),
+            remitente_nombre=ETIQUETA_REMITENTE_ROL.get(n.remitente_rol, nombre_de(n.remitente_id)),
             mensaje=n.mensaje,
+            enlace=n.enlace,
+            tipo=n.tipo,
+            puede_responder=_puede_responder(n),
+            respuesta=n.respuesta,
             leida=n.leida,
             created_at=n.created_at,
         )
         for n in notificaciones
     ]
+
+
+@router.get("/notificados", response_model=dict[str, str])
+def estudiantes_notificados(
+    rol: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Estado de la invitación a cita de cada estudiante en una dimensión:
+    `pendiente`, `aceptada` o `rechazada`, indexado por id.
+
+    La vista lo usa para distinguir a quien todavía no contesta de quien rechazó
+    —a ese se le puede volver a invitar— y que el estado sobreviva a recargar.
+    Admin o el profesional del rol.
+    """
+    if current_user.role != UserRole.ADMIN.value and current_user.role != rol:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+    return repo.estados_invitacion_por_rol(db, rol)
 
 
 @router.patch("/{notificacion_id}/leida", response_model=NotificacionResponse)
@@ -113,16 +186,69 @@ def marcar_como_leida(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """El destinatario descarta la notificación una vez la vio."""
-    notificacion = repo.marcar_leida(db, notificacion_id, current_user.id)
+    """Descarta la notificación una vez la vio quien puede verla."""
+    notificacion = repo.marcar_leida(db, notificacion_id, current_user)
     if notificacion is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notificación no encontrada")
 
     remitente = UserRepository(db).get_by_id(notificacion.remitente_id)
+    nombre = remitente.full_name if remitente else "Equipo Vitalis"
     return NotificacionResponse(
         id=notificacion.id,
-        remitente_nombre=remitente.full_name if remitente else "Equipo Vitalis",
+        remitente_nombre=ETIQUETA_REMITENTE_ROL.get(notificacion.remitente_rol, nombre),
         mensaje=notificacion.mensaje,
+        enlace=notificacion.enlace,
+        tipo=notificacion.tipo,
+        puede_responder=_puede_responder(notificacion),
+        respuesta=notificacion.respuesta,
+        leida=notificacion.leida,
+        created_at=notificacion.created_at,
+    )
+
+
+@router.post("/{notificacion_id}/responder", response_model=NotificacionResponse)
+def responder_invitacion(
+    notificacion_id: int,
+    data: ResponderInvitacion,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """El estudiante acepta o rechaza una invitación a cita. Le avisa de vuelta
+    al rol que lo invitó (lo ve ese profesional y el admin en su vista)."""
+    notificacion = repo.obtener(db, notificacion_id)
+    if notificacion is None or notificacion.destinatario_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notificación no encontrada")
+    if not notificacion.remitente_rol:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta notificación no admite respuesta")
+    if notificacion.respuesta is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ya respondiste esta invitación")
+
+    notificacion.respuesta = "aceptada" if data.acepta else "rechazada"
+    notificacion.leida = True
+    db.commit()
+    db.refresh(notificacion)
+
+    # Ambas respuestas llevan a la persona en la vista: aceptada, a su historial
+    # (repunta cuando exista); rechazada, para poder volver a invitarla.
+    verbo = "Aceptó" if data.acepta else "Rechazó"
+    repo.crear(
+        db,
+        remitente_id=current_user.id,
+        destinatario_id=None,
+        mensaje=f"{verbo} la invitación a agendar una cita.",
+        rol_destinatario=notificacion.remitente_rol,
+        enlace=_enlace_historial(notificacion.remitente_rol, current_user.id),
+        tipo="cita_aceptada" if data.acepta else "cita_rechazada",
+    )
+
+    return NotificacionResponse(
+        id=notificacion.id,
+        remitente_nombre=ETIQUETA_REMITENTE_ROL.get(notificacion.remitente_rol, "Equipo Vitalis"),
+        mensaje=notificacion.mensaje,
+        enlace=notificacion.enlace,
+        tipo=notificacion.tipo,
+        puede_responder=_puede_responder(notificacion),
+        respuesta=notificacion.respuesta,
         leida=notificacion.leida,
         created_at=notificacion.created_at,
     )
