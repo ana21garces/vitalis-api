@@ -558,3 +558,39 @@ class RecomendacionesNResponse(BaseModel):
     n_indice: float
     total_tarjetas: int
     tarjetas: List[TarjetaRecomendacion]
+
+
+# ── Reporte individual por persona (remisión) ──────────────────────────────
+
+class ReporteMedicion(BaseModel):
+    nombre: str
+    fecha: datetime
+
+
+class ReporteDatosBasicos(BaseModel):
+    nombre: str
+    sexo: Optional[str] = None
+    facultad: Optional[str] = None
+    programa: Optional[str] = None
+    tipo_usuario: Optional[str] = None
+    universidad: Optional[str] = None
+
+
+class ReporteDimension(BaseModel):
+    clave: str
+    label: str
+    indice_actual: float
+    nivel_actual: str
+    indice_base: Optional[float] = None
+    nivel_base: Optional[str] = None
+
+
+class ReportePersonaResponse(BaseModel):
+    datos: ReporteDatosBasicos
+    medicion_actual: ReporteMedicion
+    medicion_base: Optional[ReporteMedicion] = None
+    global_actual_indice: float
+    global_actual_nivel: str
+    global_base_indice: Optional[float] = None
+    global_base_nivel: Optional[str] = None
+    dimensiones: List[ReporteDimension]
