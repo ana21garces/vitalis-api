@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -54,6 +56,10 @@ from app.schemas.encuesta_hplp import (
     FacultadGroupN,
     ResultadosNutricionResponse,
     RecomendacionesNResponse,
+    ReportePersonaResponse,
+    ReporteDatosBasicos,
+    ReporteDimension,
+    ReporteMedicion,
 )
 from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
 from app.services.recomendaciones_af_service import obtener_recomendaciones_af
@@ -1092,4 +1098,98 @@ def historial_encuestas(
             )
             for e in encuestas
         ],
+    )
+
+
+# ── Reporte individual por persona (para remisión) ─────────────────────────
+
+_ROLES_REPORTE = {
+    UserRole.ADMIN,
+    UserRole.CAPELLAN,
+    UserRole.ACTIVIDAD_FISICA,
+    UserRole.RESPONSABILIDAD_SALUD,
+    UserRole.RELACIONES_INTERPERSONALES,
+    UserRole.MANEJO_ESTRES,
+    UserRole.NUTRICION,
+}
+
+_DIM_REPORTE = [
+    ("relaciones_interpersonales", "ri", "Relaciones interpersonales"),
+    ("nutricion", "n", "Nutrición"),
+    ("responsabilidad_salud", "rs", "Responsabilidad en salud"),
+    ("actividad_fisica", "af", "Actividad física"),
+    ("manejo_estres", "me", "Manejo del estrés"),
+    ("psicologia_positiva", "pp", "Psicología positiva"),
+]
+
+
+@router.get("/persona/{usuario_id}/reporte", response_model=ReportePersonaResponse)
+def reporte_persona(
+    usuario_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Datos de una persona para armar un reporte de remisión: datos básicos,
+    resultado global y nivel de las 6 dimensiones, con la comparación entre la
+    línea base y la última medición cuando la persona ya hizo un seguimiento.
+
+    El detalle pregunta por pregunta de una dimensión lo tiene la vista de ese
+    perfil; esto es el panorama para acompañarlo.
+    """
+    if current_user.role not in _ROLES_REPORTE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para ver el reporte de una persona",
+        )
+
+    persona = db.query(User).filter(User.id == usuario_id).first()
+    if persona is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona no encontrada")
+
+    encuestas = repo.obtener_por_usuario(db, usuario_id)  # más reciente primero
+    if not encuestas:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La persona no ha respondido la encuesta",
+        )
+
+    actual = encuestas[0]
+    base = encuestas[-1] if len(encuestas) >= 2 else None
+
+    nombres_ciclo = {c.id: c.nombre for c in ciclos.listar(db)}
+
+    def _medicion(enc):
+        return ReporteMedicion(
+            nombre=nombres_ciclo.get(enc.ciclo_id, "Encuesta"),
+            fecha=enc.fecha_respuesta,
+        )
+
+    dimensiones = [
+        ReporteDimension(
+            clave=clave,
+            label=label,
+            indice_actual=getattr(actual, f"{pref}_indice") or 0.0,
+            nivel_actual=getattr(actual, f"{pref}_nivel") or "—",
+            indice_base=(getattr(base, f"{pref}_indice") if base else None),
+            nivel_base=(getattr(base, f"{pref}_nivel") if base else None),
+        )
+        for clave, pref, label in _DIM_REPORTE
+    ]
+
+    return ReportePersonaResponse(
+        datos=ReporteDatosBasicos(
+            nombre=persona.full_name,
+            sexo=persona.sexo,
+            facultad=persona.facultad,
+            programa=persona.program,
+            tipo_usuario=persona.tipo_usuario,
+            universidad=persona.university,
+        ),
+        medicion_actual=_medicion(actual),
+        medicion_base=(_medicion(base) if base else None),
+        global_actual_indice=actual.indice_global or 0.0,
+        global_actual_nivel=actual.nivel_global or "—",
+        global_base_indice=(base.indice_global if base else None),
+        global_base_nivel=(base.nivel_global if base else None),
+        dimensiones=dimensiones,
     )

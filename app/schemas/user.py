@@ -46,6 +46,46 @@ class ActualizarPerfilRequest(BaseModel):
         return v.strip()
 
 
+class CompletarDatosDemograficosRequest(BaseModel):
+    """Datos demográficos que a algunas cuentas les quedaron sin guardar.
+    Todos opcionales: la pantalla que bloquea el dashboard manda solo los que
+    falten, y el endpoint solo escribe lo que llega (no borra lo que ya está).
+    """
+
+    facultad: str | None = None
+    program: str | None = None
+    tipo_usuario: str | None = None
+    sexo: str | None = None
+
+    @field_validator("facultad", "program")
+    @classmethod
+    def _texto_o_none(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
+
+    @field_validator("tipo_usuario")
+    @classmethod
+    def _tipo_valido(cls, v):
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if v not in {"estudiante", "docente", "administrativo"}:
+            raise ValueError("tipo_usuario inválido")
+        return v
+
+    @field_validator("sexo")
+    @classmethod
+    def _sexo_valido(cls, v):
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if v not in {"masculino", "femenino"}:
+            raise ValueError("sexo inválido")
+        return v
+
+
 class CambiarPasswordRequest(BaseModel):
     current_password: str
     new_password: str
