@@ -1,7 +1,27 @@
+from datetime import datetime, timedelta, timezone
+
 from tests.conftest import ENCUESTA_PAYLOAD
 
 ENCUESTA_URL = "/api/v1/encuesta"
 NOTIF_URL = "/api/v1/notificaciones"
+CICLOS_URL = "/api/v1/ciclos"
+
+
+def _payload_todo(valor):
+    return {k: (valor if "_item_" in k else v) for k, v in ENCUESTA_PAYLOAD.items()}
+
+
+def _programar_seguimiento(client, admin_headers):
+    ahora = datetime.now(timezone.utc)
+    return client.post(
+        CICLOS_URL,
+        json={
+            "nombre": "Seguimiento 1",
+            "fecha_apertura": ahora.isoformat(),
+            "fecha_cierre": (ahora + timedelta(days=30)).isoformat(),
+        },
+        headers=admin_headers,
+    )
 
 AF_ITEMS = [
     "af_item_04", "af_item_10", "af_item_16", "af_item_17", "af_item_23",
@@ -61,3 +81,23 @@ def test_sin_alerta_cuando_nivel_no_es_critico(client, auth_headers, capellan_he
 
     notis = client.get(NOTIF_URL, headers=capellan_headers).json()
     assert [n for n in notis if "Psicología positiva" in n["mensaje"]] == []
+
+
+def test_notifica_retroceso_vs_linea_base(client, auth_headers, admin_headers, act_fisica_headers):
+    assert client.post(ENCUESTA_URL, json=_payload_todo(4), headers=auth_headers).status_code == 201
+    _programar_seguimiento(client, admin_headers)
+    assert client.post(ENCUESTA_URL, json=_payload_todo(1), headers=auth_headers).status_code == 201
+
+    notis = client.get(NOTIF_URL, headers=act_fisica_headers).json()
+    retrocesos = [n for n in notis if "retrocedió en Actividad física" in n["mensaje"]]
+    assert len(retrocesos) == 1
+    assert "de Excelente a Pobre" in retrocesos[0]["mensaje"]
+
+
+def test_sin_retroceso_si_mejora(client, auth_headers, admin_headers, act_fisica_headers):
+    assert client.post(ENCUESTA_URL, json=_payload_todo(1), headers=auth_headers).status_code == 201
+    _programar_seguimiento(client, admin_headers)
+    assert client.post(ENCUESTA_URL, json=_payload_todo(4), headers=auth_headers).status_code == 201
+
+    notis = client.get(NOTIF_URL, headers=act_fisica_headers).json()
+    assert [n for n in notis if "retrocedió" in n["mensaje"]] == []
