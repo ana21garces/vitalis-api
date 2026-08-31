@@ -17,6 +17,7 @@ from app.schemas.user import (
     CambiarEstadoRequest,
     CrearUsuarioRequest,
     ActualizarPerfilRequest,
+    CompletarDatosDemograficosRequest,
     CambiarPasswordRequest,
     MensajeResponse,
 )
@@ -59,6 +60,33 @@ def actualizar_perfil_propio(
     current_user.full_name = data.full_name
     current_user.email = data.email
     updated = repo.update(current_user)
+    response = UserResponse.model_validate(updated)
+    return response.model_copy(update={"rank_tier": rank_desde_xp(updated.total_xp)})
+
+
+@router.patch("/me/datos-demograficos", response_model=UserResponse)
+def completar_datos_demograficos(
+    data: CompletarDatosDemograficosRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Completa datos demográficos que quedaron sin guardar (facultad, programa,
+    tipo de usuario, sexo).
+
+    Varias cuentas se registraron sin estos datos por una caída del servidor.
+    La pantalla que bloquea el dashboard cuando falta alguno los pide y llama
+    aquí. Solo se escriben los campos que llegan; los que ya están no se tocan.
+    """
+    if data.tipo_usuario is not None:
+        current_user.tipo_usuario = data.tipo_usuario
+    if data.sexo is not None:
+        current_user.sexo = data.sexo
+    if data.facultad is not None:
+        current_user.facultad = data.facultad
+    if data.program is not None:
+        current_user.program = data.program
+
+    updated = UserRepository(db).update(current_user)
     response = UserResponse.model_validate(updated)
     return response.model_copy(update={"rank_tier": rank_desde_xp(updated.total_xp)})
 

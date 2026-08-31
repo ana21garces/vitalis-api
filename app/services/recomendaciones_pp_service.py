@@ -39,6 +39,11 @@ ITEM_FIELDS = {
 # "config_actividad" trae los parámetros que esa plantilla necesita; se omite
 # cuando el valor por defecto de la plantilla (ej. usar el objetivo como
 # prompt del diario) ya es suficiente.
+# "dias_objetivo" (opcional): días que la persona debe sostener la actividad
+# antes de que se complete sola. Si se omite se usa SEGUIMIENTO_DIAS_OBJETIVO
+# de la config (21). El "modo prueba" (SEGUIMIENTO_DIAS_PRUEBA) lo ignora y
+# usa un número pequeño para todas. Aquí es donde van los 21/15/10 días que
+# fijaron los profesionales, cuando estén digitalizados.
 RECOMENDACIONES: dict[int, dict[str, dict]] = {
     6: {
         "POBRE": {
