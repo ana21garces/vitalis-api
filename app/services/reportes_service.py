@@ -12,13 +12,17 @@ Los índices y niveles salen de las columnas ya calculadas en la base (las misma
 que ve el usuario), no se recalculan aquí.
 """
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO, StringIO
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.encuesta_hplp import EncuestaHplp
+from app.models.seguimiento_recomendacion import (
+    RegistroDiarioSeguimiento,
+    SeguimientoRecomendacion,
+)
 from app.models.user import User, UserRole
 
 # Cuentas del sistema: no responden la encuesta. Se excluyen de los reportes que
@@ -62,9 +66,18 @@ DIM_POR_CLAVE = {
     "psicologia_positiva": "pp",
 }
 
+DIM_ETIQUETA_POR_CLAVE = {
+    "relaciones_interpersonales": "Relaciones interpersonales",
+    "nutricion": "Nutrición",
+    "responsabilidad_salud": "Responsabilidad en salud",
+    "actividad_fisica": "Actividad física",
+    "manejo_estres": "Manejo del estrés",
+    "psicologia_positiva": "Psicología positiva",
+}
+
 NIVELES = ["Pobre", "Moderado", "Bueno", "Excelente"]
 
-TIPOS_VALIDOS = {"usuarios", "participacion", "progresion", "distribucion"}
+TIPOS_VALIDOS = {"usuarios", "participacion", "progresion", "distribucion", "cumplimiento", "misiones"}
 FORMATOS_VALIDOS = {"excel", "pdf", "csv"}
 
 
@@ -375,6 +388,158 @@ def construir_distribucion(db: Session, dimension: str = "global") -> Tabla:
 
 # ── Renderers ─────────────────────────────────────────────────────────────────
 
+def construir_cumplimiento(
+    db: Session,
+    dimension: str = "todas",
+    desde: date | None = None,
+    hasta: date | None = None,
+) -> Tabla:
+    """Trazabilidad del seguimiento de recomendaciones: por persona y actividad,
+    si la hizo, cuántas veces y en qué fechas. Filtrable por dimensión y periodo."""
+    from app.services.seguimiento_recomendacion_service import DIMENSION_A_FICHAS
+
+    q = (
+        db.query(SeguimientoRecomendacion, User)
+        .join(User, User.id == SeguimientoRecomendacion.user_id)
+        .filter(User.role.notin_(ROLES_PROFESIONALES))
+    )
+    if dimension not in ("todas", "global") and dimension in DIM_POR_CLAVE:
+        q = q.filter(SeguimientoRecomendacion.dimension == dimension)
+    seguimientos = q.all()
+
+    fechas_por_seg: dict = {}
+    seg_ids = [s.id for s, _ in seguimientos]
+    if seg_ids:
+        reg_q = db.query(RegistroDiarioSeguimiento).filter(
+            RegistroDiarioSeguimiento.seguimiento_id.in_(seg_ids)
+        )
+        if desde:
+            reg_q = reg_q.filter(RegistroDiarioSeguimiento.fecha >= desde)
+        if hasta:
+            reg_q = reg_q.filter(RegistroDiarioSeguimiento.fecha <= hasta)
+        for r in reg_q.all():
+            fechas_por_seg.setdefault(r.seguimiento_id, []).append(r.fecha)
+
+    estados = {"en_progreso": "En progreso", "completada": "Completada"}
+
+    filas = []
+    for seg, usuario in seguimientos:
+        fechas = sorted(fechas_por_seg.get(seg.id, []))
+        veces = len(fechas)
+        try:
+            tecnica = DIMENSION_A_FICHAS[seg.dimension][seg.pregunta_num][seg.nivel]["tecnica"]
+        except (KeyError, TypeError):
+            tecnica = f"Pregunta {seg.pregunta_num}"
+        filas.append([
+            usuario.full_name,
+            usuario.sexo or "",
+            usuario.facultad or "",
+            usuario.program or "",
+            DIM_ETIQUETA_POR_CLAVE.get(seg.dimension, seg.dimension),
+            tecnica,
+            seg.nivel.capitalize(),
+            estados.get(seg.estado, seg.estado),
+            "Sí" if veces > 0 else "No",
+            str(veces),
+            ", ".join(f.strftime("%Y-%m-%d") for f in fechas),
+            fechas[-1].strftime("%Y-%m-%d") if fechas else "",
+        ])
+    filas.sort(key=lambda f: (f[0].lower(), f[4], f[5]))
+
+    etiqueta_dim = (
+        "todas las dimensiones"
+        if dimension in ("todas", "global")
+        else DIM_ETIQUETA_POR_CLAVE.get(dimension, dimension)
+    )
+    periodo = ""
+    if desde or hasta:
+        periodo = f" · Periodo: {desde or '…'} a {hasta or '…'}"
+
+    return Tabla(
+        titulo="Recomendaciones del plan",
+        subtitulo=f"Recomendaciones que siguió cada persona · {etiqueta_dim}{periodo}",
+        columnas=[
+            "Nombre", "Sexo", "Facultad", "Programa", "Dimensión", "Actividad",
+            "Nivel", "Estado", "¿La hizo?", "Veces", "Fechas", "Última vez",
+        ],
+        filas=filas,
+        # La columna "Fechas" (10) no cabe en el PDF; queda en Excel/CSV.
+        columnas_pdf=[0, 2, 3, 4, 5, 6, 7, 8, 9, 11],
+        nota_pdf="Las fechas completas de cada actividad están en el Excel/CSV.",
+    )
+
+
+def construir_misiones(
+    db: Session,
+    dimension: str = "todas",
+    desde: date | None = None,
+    hasta: date | None = None,
+) -> Tabla:
+    """Misiones diarias de hábitos (gamificación) que completó cada persona:
+    cuántas veces y en qué fechas. Filtrable por dimensión y periodo."""
+    from app.data.tareas_catalogo import TAREAS_POR_ID
+    from app.models.gamificacion import MisionDiaria
+
+    q = (
+        db.query(MisionDiaria, User)
+        .join(User, User.id == MisionDiaria.user_id)
+        .filter(User.role.notin_(ROLES_PROFESIONALES))
+        .filter(MisionDiaria.completada_at.isnot(None))
+    )
+    if dimension not in ("todas", "global") and dimension in DIM_POR_CLAVE:
+        q = q.filter(MisionDiaria.dimension == dimension)
+    if desde:
+        q = q.filter(MisionDiaria.fecha >= desde)
+    if hasta:
+        q = q.filter(MisionDiaria.fecha <= hasta)
+
+    agrupado: dict = {}
+    for mision, usuario in q.all():
+        clave = (usuario.id, mision.tarea_id)
+        datos = agrupado.setdefault(
+            clave,
+            {"usuario": usuario, "dimension": mision.dimension, "tarea_id": mision.tarea_id, "fechas": []},
+        )
+        datos["fechas"].append(mision.fecha)
+
+    filas = []
+    for datos in agrupado.values():
+        usuario = datos["usuario"]
+        fechas = sorted(datos["fechas"])
+        tarea = TAREAS_POR_ID.get(datos["tarea_id"])
+        filas.append([
+            usuario.full_name,
+            usuario.sexo or "",
+            usuario.facultad or "",
+            usuario.program or "",
+            DIM_ETIQUETA_POR_CLAVE.get(datos["dimension"], datos["dimension"]),
+            tarea.titulo if tarea else datos.get("tarea_id", ""),
+            str(len(fechas)),
+            ", ".join(f.strftime("%Y-%m-%d") for f in fechas),
+            fechas[-1].strftime("%Y-%m-%d") if fechas else "",
+        ])
+    filas.sort(key=lambda f: (f[0].lower(), f[4], f[5]))
+
+    etiqueta_dim = (
+        "todas las dimensiones"
+        if dimension in ("todas", "global")
+        else DIM_ETIQUETA_POR_CLAVE.get(dimension, dimension)
+    )
+    periodo = f" · Periodo: {desde or '…'} a {hasta or '…'}" if (desde or hasta) else ""
+
+    return Tabla(
+        titulo="Misiones de hábitos",
+        subtitulo=f"Misiones de hábitos que completó cada persona · {etiqueta_dim}{periodo}",
+        columnas=[
+            "Nombre", "Sexo", "Facultad", "Programa", "Dimensión", "Misión",
+            "Veces", "Fechas", "Última vez",
+        ],
+        filas=filas,
+        columnas_pdf=[0, 2, 3, 4, 5, 6, 8],
+        nota_pdf="Las fechas completas de cada misión están en el Excel/CSV.",
+    )
+
+
 VERDE = "16A34A"
 
 
@@ -511,7 +676,8 @@ def render_pdf(tabla: Tabla) -> bytes:
 # ── Orquestación ──────────────────────────────────────────────────────────────
 
 def generar(db: Session, tipo: str, *, rol: str, segmento: str,
-            dimension: str, nivel: str | None) -> Tabla:
+            dimension: str, nivel: str | None,
+            desde: date | None = None, hasta: date | None = None) -> Tabla:
     if tipo == "usuarios":
         return construir_usuarios(db, rol)
     if tipo == "participacion":
@@ -520,6 +686,10 @@ def generar(db: Session, tipo: str, *, rol: str, segmento: str,
         return construir_progresion(db, dimension, nivel)
     if tipo == "distribucion":
         return construir_distribucion(db, dimension)
+    if tipo == "cumplimiento":
+        return construir_cumplimiento(db, dimension, desde, hasta)
+    if tipo == "misiones":
+        return construir_misiones(db, dimension, desde, hasta)
     raise ValueError(f"Tipo de reporte desconocido: {tipo}")
 
 
