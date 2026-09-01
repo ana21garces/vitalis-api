@@ -296,9 +296,59 @@ class GamificacionService:
         self._otorgar_xp(user, BONUS_ENCUESTA_XP, "encuesta", ref)
         return True
 
+    def _detalle_evento(self, ev: XpEvento) -> str | None:
+        """Nombre legible de la actividad/evento que dio los puntos."""
+        m, ref = ev.motivo, ev.referencia_id
+        if m == "bonus_dia":
+            return "Completaste todas las misiones del día"
+        if m in ("racha_3", "racha_7"):
+            return "Bonus por mantener la racha"
+        if m == "encuesta":
+            return "Cuestionario PEPS II"
+        if not ref:
+            return None
+        if m == "tarea_completada":
+            try:
+                mision = self.db.get(MisionDiaria, uuid.UUID(ref))
+            except (ValueError, TypeError):
+                return None
+            tarea = TAREAS_POR_ID.get(mision.tarea_id) if mision else None
+            return tarea.titulo if tarea else None
+        if m == "insignia":
+            from app.data.insignias_catalogo import INSIGNIAS_POR_ID
+            ins = INSIGNIAS_POR_ID.get(ref)
+            return ins.nombre if ins else None
+        if m in ("recomendacion_dia", "recomendacion_completada"):
+            from app.models.seguimiento_recomendacion import (
+                RegistroDiarioSeguimiento,
+                SeguimientoRecomendacion,
+            )
+            from app.services.seguimiento_recomendacion_service import DIMENSION_A_FICHAS
+            try:
+                rid = uuid.UUID(ref)
+            except (ValueError, TypeError):
+                return None
+            if m == "recomendacion_dia":
+                registro = self.db.get(RegistroDiarioSeguimiento, rid)
+                seg = self.db.get(SeguimientoRecomendacion, registro.seguimiento_id) if registro else None
+            else:
+                seg = self.db.get(SeguimientoRecomendacion, rid)
+            if seg is None:
+                return None
+            label = DIMENSION_LABELS.get(seg.dimension, seg.dimension)
+            ficha = DIMENSION_A_FICHAS.get(seg.dimension, {}).get(seg.pregunta_num, {}).get(seg.nivel, {})
+            tecnica = ficha.get("tecnica")
+            return f"{label}: {tecnica}" if tecnica else label
+        return None
+
     def historial(self, user: User, limite: int = 20) -> list[XpEventoResponse]:
         eventos = self.repo.historial(user.id, limite)
-        return [XpEventoResponse.model_validate(e) for e in eventos]
+        return [
+            XpEventoResponse.model_validate(e).model_copy(
+                update={"detalle": self._detalle_evento(e)}
+            )
+            for e in eventos
+        ]
 
     def progreso(self, user: User) -> ProgresoGamificacion:
         return progreso_de_usuario(user)
