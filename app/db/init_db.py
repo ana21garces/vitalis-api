@@ -9,6 +9,7 @@ from app.models.encuesta_hplp import EncuestaHplp  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.notificacion import Notificacion  # noqa: F401
 from app.models.ciclo_medicion import CicloMedicion  # noqa: F401
+from app.models.sesion import Sesion  # noqa: F401
 from app.models.gamificacion import MisionDiaria, XpEvento  # noqa: F401
 from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento, SeguimientoRecomendacion  # noqa: F401
 from app.models.insignia import InsigniaUsuario  # noqa: F401
@@ -80,13 +81,38 @@ def init_db() -> None:
     if resultado.rowcount:
         print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas", flush=True)
 
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS enlace VARCHAR(500)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS rol_destinatario VARCHAR(50)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS remitente_rol VARCHAR(50)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS respuesta VARCHAR(20)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS tipo VARCHAR(30)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ALTER COLUMN destinatario_id DROP NOT NULL"
+        ))
+    print("[OK] Columnas enlace, rol_destinatario, remitente_rol, respuesta y tipo en notificaciones verificadas", flush=True)
+
     # Migración: mediciones. create_all() crea la tabla ciclos_medicion nueva,
     # pero no agrega la columna a encuestas_hplp, que ya existía.
     with engine.begin() as conn:
         conn.execute(text(
             "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS ciclo_id INTEGER"
         ))
-    print("[OK] Columna ciclo_id verificada", flush=True)
+        conn.execute(text(
+            "ALTER TABLE encuestas_hplp ADD COLUMN IF NOT EXISTS "
+            "consentimiento_aceptado_en TIMESTAMPTZ"
+        ))
+    print("[OK] Columnas ciclo_id y consentimiento_aceptado_en verificadas", flush=True)
 
     # Las encuestas que ya existían son la línea base: se crea el ciclo si hace
     # falta y se les asigna. Sin esto quedarían sin medición y no entrarían en

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    auditoria,
     auth,
     ciclos,
     encuesta_hplp,
@@ -21,5 +22,6 @@ api_router.include_router(users.router)
 api_router.include_router(notificaciones.router)
 api_router.include_router(ciclos.router)
 api_router.include_router(reportes.router)
+api_router.include_router(auditoria.router)
 api_router.include_router(gamificacion.router)
 api_router.include_router(seguimiento_recomendaciones.router)

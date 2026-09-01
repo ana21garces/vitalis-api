@@ -13,6 +13,7 @@ class EncuestaHplp(Base):
     # Medición a la que pertenece la respuesta (ciclos_medicion.id). Es lo que
     # permite comparar la línea base con cada seguimiento.
     ciclo_id = Column(Integer, nullable=True, index=True)
+    consentimiento_aceptado_en = Column(DateTime(timezone=True), nullable=True)
 
     # ── Relaciones Interpersonales (9 ítems, prefijo ri_) ──────────────────
     ri_item_01 = Column(SmallInteger, nullable=False)

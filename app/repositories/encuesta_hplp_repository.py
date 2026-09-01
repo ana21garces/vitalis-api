@@ -27,6 +27,7 @@ def crear_encuesta(
     encuesta = EncuestaHplp(
         usuario_id=usuario_id,
         ciclo_id=ciclo_id,
+        consentimiento_aceptado_en=data.consentimiento_aceptado_en,
 
         # RI
         ri_item_01=data.ri_item_01, ri_item_07=data.ri_item_07,
@@ -92,6 +93,17 @@ def obtener_por_usuario(db: Session, usuario_id: uuid.UUID):
         .filter(EncuestaHplp.usuario_id == usuario_id)
         .order_by(EncuestaHplp.fecha_respuesta.desc())
         .all()
+    )
+
+
+def obtener_primera(db: Session, usuario_id: uuid.UUID) -> EncuestaHplp | None:
+    """La primera encuesta de la persona (su línea base). Ordena por id, que es
+    estable aunque dos respuestas compartan fecha."""
+    return (
+        db.query(EncuestaHplp)
+        .filter(EncuestaHplp.usuario_id == usuario_id)
+        .order_by(EncuestaHplp.id.asc())
+        .first()
     )
 
 
