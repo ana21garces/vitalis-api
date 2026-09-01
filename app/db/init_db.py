@@ -12,6 +12,7 @@ from app.models.ciclo_medicion import CicloMedicion  # noqa: F401
 from app.models.sesion import Sesion  # noqa: F401
 from app.models.gamificacion import MisionDiaria, XpEvento  # noqa: F401
 from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento, SeguimientoRecomendacion  # noqa: F401
+from app.models.insignia import InsigniaUsuario  # noqa: F401
 
 
 def init_db() -> None:

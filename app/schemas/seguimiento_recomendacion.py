@@ -15,10 +15,6 @@ class SeguimientoResponse(BaseModel):
     racha_actual: int
     mejor_racha: int
     total_dias_registrados: int
-    # Días que la persona debe sostener la actividad para que se complete sola.
-    # No es una columna del modelo: lo resuelve el servicio (ficha del
-    # profesional, valor por defecto o "modo prueba").
-    dias_objetivo: int = 21
     ultima_fecha_registro: date | None
     completada_at: datetime | None
 
@@ -55,9 +51,6 @@ class RegistrarDiaResponse(BaseModel):
     seguimiento: SeguimientoResponse
     registro: RegistroDiarioResponse
     racha_aumento: bool
-    # True cuando este registro alcanzó los días objetivo y la actividad quedó
-    # completada automáticamente.
-    meta_alcanzada: bool = False
 
 
 class ProgresoDimension(BaseModel):

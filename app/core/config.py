@@ -24,11 +24,6 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
-    # Seguimiento de recomendaciones: días que la persona debe sostener una
-    # actividad del plan antes de que se marque como completada.
-    SEGUIMIENTO_DIAS_OBJETIVO: int = 21   # por defecto, si la ficha no trae uno propio
-    SEGUIMIENTO_DIAS_PRUEBA: int = 0      # >0 activa "modo prueba": TODAS las actividades usan este nº
-
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         case_sensitive=True,

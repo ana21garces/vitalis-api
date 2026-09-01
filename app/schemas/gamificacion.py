@@ -50,6 +50,9 @@ class XpEventoResponse(BaseModel):
     xp: int
     motivo: str
     referencia_id: str | None
+    # Qué evento/actividad concreta dio los puntos (ej. "Caminata activa"),
+    # resuelto desde referencia_id. None si no se pudo identificar.
+    detalle: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
