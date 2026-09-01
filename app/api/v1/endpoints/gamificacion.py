@@ -12,7 +12,9 @@ from app.schemas.gamificacion import (
     ProgresoGamificacion,
     XpEventoResponse,
 )
+from app.schemas.insignia import InsigniasResponse
 from app.services.gamificacion_service import GamificacionService
+from app.services.insignias_service import InsigniasService
 
 router = APIRouter(prefix="/gamificacion", tags=["Gamificación"])
 
@@ -56,6 +58,16 @@ def historial(
     current_user: User = Depends(get_current_user),
 ):
     return GamificacionService(db).historial(current_user)
+
+
+@router.get("/insignias", response_model=InsigniasResponse)
+def insignias(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Catálogo de insignias con cuáles ha ganado el usuario. Al consultarlas se
+    evalúan y otorgan las que ya cumple (con su bonus de XP)."""
+    return InsigniasService(db).obtener(current_user)
 
 
 @router.post("/avatar", response_model=ProgresoGamificacion)
