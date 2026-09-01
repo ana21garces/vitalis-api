@@ -96,6 +96,17 @@ def obtener_por_usuario(db: Session, usuario_id: uuid.UUID):
     )
 
 
+def obtener_primera(db: Session, usuario_id: uuid.UUID) -> EncuestaHplp | None:
+    """La primera encuesta de la persona (su línea base). Ordena por id, que es
+    estable aunque dos respuestas compartan fecha."""
+    return (
+        db.query(EncuestaHplp)
+        .filter(EncuestaHplp.usuario_id == usuario_id)
+        .order_by(EncuestaHplp.id.asc())
+        .first()
+    )
+
+
 def obtener_ultimo(db: Session, usuario_id: uuid.UUID) -> EncuestaHplp | None:
     return (
         db.query(EncuestaHplp)

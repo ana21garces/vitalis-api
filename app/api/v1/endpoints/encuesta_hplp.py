@@ -196,6 +196,19 @@ def guardar_encuesta(
     from app.services.gamificacion_service import GamificacionService
     GamificacionService(db).otorgar_bonus_encuesta(current_user, encuesta.id)
 
+    # Avisar a los profesionales si el estudiante quedó en nivel crítico. Nunca
+    # debe tumbar el guardado de la encuesta, por eso va aislado.
+    try:
+        from app.services.alerta_estudiante_service import notificar_alertas, notificar_retrocesos
+        notificar_alertas(db, current_user, encuesta)
+        if not primera_vez:
+            linea_base = repo.obtener_primera(db, current_user.id)
+            if linea_base and linea_base.id != encuesta.id:
+                notificar_retrocesos(db, current_user, encuesta, linea_base)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudieron crear las alertas de la encuesta")
+
     return EncuestaResponse(
         encuesta_id=encuesta.id,
         usuario_id=str(current_user.id),

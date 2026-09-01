@@ -80,6 +80,27 @@ def init_db() -> None:
     if resultado.rowcount:
         print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas", flush=True)
 
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS enlace VARCHAR(500)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS rol_destinatario VARCHAR(50)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS remitente_rol VARCHAR(50)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS respuesta VARCHAR(20)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS tipo VARCHAR(30)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE notificaciones ALTER COLUMN destinatario_id DROP NOT NULL"
+        ))
+    print("[OK] Columnas enlace, rol_destinatario, remitente_rol, respuesta y tipo en notificaciones verificadas", flush=True)
+
     # Migración: mediciones. create_all() crea la tabla ciclos_medicion nueva,
     # pero no agrega la columna a encuestas_hplp, que ya existía.
     with engine.begin() as conn:
