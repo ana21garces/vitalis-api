@@ -9,7 +9,6 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.data.tareas_catalogo import DIMENSION_LABELS
 from app.models.encuesta_hplp import EncuestaHplp
 from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento, SeguimientoRecomendacion
@@ -109,29 +108,6 @@ DIMENSION_A_ROL = {
 }
 
 
-def _dias_objetivo(dimension: str, pregunta_num: int, nivel: str) -> int:
-    """Días que la persona debe sostener una actividad antes de que se marque
-    completada.
-
-    Prioridad: (1) "modo prueba" — si `SEGUIMIENTO_DIAS_PRUEBA > 0`, TODAS las
-    actividades usan ese número, para no esperar semanas durante las pruebas;
-    (2) el valor propio de la ficha del profesional (`dias_objetivo` en
-    `RECOMENDACIONES[pregunta][nivel]`), cuando esté cargado; (3) el valor por
-    defecto de configuración.
-    """
-    if settings.SEGUIMIENTO_DIAS_PRUEBA and settings.SEGUIMIENTO_DIAS_PRUEBA > 0:
-        return settings.SEGUIMIENTO_DIAS_PRUEBA
-    ficha = DIMENSION_A_FICHAS.get(dimension, {}).get(pregunta_num, {}).get(nivel, {})
-    return int(ficha.get("dias_objetivo") or settings.SEGUIMIENTO_DIAS_OBJETIVO)
-
-
-def _seguimiento_response(seg: SeguimientoRecomendacion) -> SeguimientoResponse:
-    """`SeguimientoResponse` con `dias_objetivo` resuelto (no es columna del modelo)."""
-    return SeguimientoResponse.model_validate(seg).model_copy(
-        update={"dias_objetivo": _dias_objetivo(seg.dimension, seg.pregunta_num, seg.nivel)}
-    )
-
-
 class SeguimientoRecomendacionService:
 
     def __init__(self, db: Session):
@@ -163,7 +139,7 @@ class SeguimientoRecomendacionService:
             tarjetas.append(
                 TarjetaConSeguimiento(
                     tarjeta=TarjetaRecomendacion(**t),
-                    seguimiento=_seguimiento_response(seguimiento),
+                    seguimiento=SeguimientoResponse.model_validate(seguimiento),
                 )
             )
         prefijo = DIMENSION_A_PREFIJO[dimension]
@@ -204,30 +180,16 @@ class SeguimientoRecomendacionService:
 
         racha_aumento = self._actualizar_racha(seguimiento, hoy)
         seguimiento.total_dias_registrados += 1
-
-        # ¿Llegó a los días objetivo? -> se completa sola.
-        dias_obj = _dias_objetivo(seguimiento.dimension, seguimiento.pregunta_num, seguimiento.nivel)
-        meta_alcanzada = seguimiento.total_dias_registrados >= dias_obj
-        if meta_alcanzada:
-            seguimiento.estado = "completada"
-            seguimiento.completada_at = datetime.now(timezone.utc)
-
         self.repo.guardar_seguimiento(seguimiento)
 
         GamificacionService(self.db).otorgar_xp_externo(
             user, XP_POR_DIA, "recomendacion_dia", str(registro.id)
         )
-        if meta_alcanzada:
-            GamificacionService(self.db).otorgar_xp_externo(
-                user, XP_POR_COMPLETAR, "recomendacion_completada", str(seguimiento.id)
-            )
-            self._notificar_profesionales(user, seguimiento)
 
         return RegistrarDiaResponse(
-            seguimiento=_seguimiento_response(seguimiento),
+            seguimiento=SeguimientoResponse.model_validate(seguimiento),
             registro=RegistroDiarioResponse.model_validate(registro),
             racha_aumento=racha_aumento,
-            meta_alcanzada=meta_alcanzada,
         )
 
     def _notificar_profesionales(self, user: User, seguimiento: SeguimientoRecomendacion) -> None:
@@ -271,7 +233,7 @@ class SeguimientoRecomendacionService:
         )
         self._notificar_profesionales(user, seguimiento)
 
-        return _seguimiento_response(seguimiento)
+        return SeguimientoResponse.model_validate(seguimiento)
 
     def historial(self, user: User, seguimiento_id, limite: int = 60) -> list[RegistroDiarioResponse]:
         seguimiento = self.repo.obtener_seguimiento_por_id(seguimiento_id, user.id)
