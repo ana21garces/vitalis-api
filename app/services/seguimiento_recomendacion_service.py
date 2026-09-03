@@ -266,13 +266,18 @@ class SeguimientoRecomendacionService:
             total = len(tarjetas)
 
             seguimientos = self.repo.obtener_seguimientos_dimension(user.id, dimension)
-            completados_por_clave = {
-                (s.pregunta_num, s.nivel): s.estado == "completada" for s in seguimientos
-            }
-            completadas = sum(
-                1 for t in tarjetas
-                if completados_por_clave.get((t["pregunta_num"], t["nivel"]))
-            )
+            por_clave = {(s.pregunta_num, s.nivel): s for s in seguimientos}
+            completadas = 0
+            registradas_hoy = 0
+            hoy = hoy_bogota()
+            for tarjeta in tarjetas:
+                seguimiento = por_clave.get((tarjeta["pregunta_num"], tarjeta["nivel"]))
+                if seguimiento is None:
+                    continue
+                if seguimiento.estado == "completada":
+                    completadas += 1
+                elif seguimiento.ultima_fecha_registro == hoy:
+                    registradas_hoy += 1
             activas = total - completadas
 
             mensaje_cierre = MENSAJE_CIERRE if total > 0 and completadas == total else None
@@ -284,6 +289,7 @@ class SeguimientoRecomendacionService:
                     total=total,
                     activas=activas,
                     completadas=completadas,
+                    registradas_hoy=registradas_hoy,
                     mensaje_cierre=mensaje_cierre,
                 )
             )
