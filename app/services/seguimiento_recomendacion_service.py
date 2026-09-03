@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.data.tareas_catalogo import DIMENSION_LABELS
@@ -120,14 +121,23 @@ class SeguimientoRecomendacionService:
         existente = self.repo.obtener_seguimiento(user_id, dimension, pregunta_num, nivel)
         if existente:
             return existente
-        return self.repo.crear_seguimiento(
-            SeguimientoRecomendacion(
-                user_id=user_id,
-                dimension=dimension,
-                pregunta_num=pregunta_num,
-                nivel=nivel,
+        try:
+            return self.repo.crear_seguimiento(
+                SeguimientoRecomendacion(
+                    user_id=user_id,
+                    dimension=dimension,
+                    pregunta_num=pregunta_num,
+                    nivel=nivel,
+                )
             )
-        )
+        except IntegrityError:
+            # Otra petición simultánea ya lo creó (la vista se abre y dispara
+            # dos veces): se recupera el que quedó en vez de fallar.
+            self.db.rollback()
+            creado = self.repo.obtener_seguimiento(user_id, dimension, pregunta_num, nivel)
+            if creado is None:
+                raise
+            return creado
 
     def obtener_tarjetas_con_seguimiento(
         self, user: User, dimension: str, encuesta: EncuestaHplp,

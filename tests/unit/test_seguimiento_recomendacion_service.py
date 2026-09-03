@@ -9,7 +9,10 @@ import pytest
 from app.models.gamificacion import XpEvento
 from app.models.notificacion import Notificacion
 from app.models.encuesta_hplp import EncuestaHplp
-from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento
+from app.models.seguimiento_recomendacion import (
+    RegistroDiarioSeguimiento,
+    SeguimientoRecomendacion,
+)
 from app.models.user import User, UserRole
 from app.services.encuesta_hplp_service import ITEM_FIELDS
 from app.services.gamificacion_service import hoy_bogota
@@ -117,6 +120,37 @@ def test_registro_duplicado_mismo_dia_falla(db, estudiante, service):
 
     with pytest.raises(ValueError):
         service.registrar_dia(estudiante, seguimiento.id, notas=None)
+
+
+def test_obtener_o_crear_tolera_dos_peticiones_a_la_vez(db, estudiante, service):
+    """Abrir el plan dispara la petición dos veces (el efecto se ejecuta doble
+    en desarrollo, y en producción pasa con dos pestañas): la segunda chocaba
+    contra la restricción única y la pantalla quedaba en error."""
+    original = service.repo.obtener_seguimiento
+    llamadas = {"n": 0}
+
+    def simula_carrera(*args, **kwargs):
+        llamadas["n"] += 1
+        if llamadas["n"] == 1:
+            service.repo.crear_seguimiento(
+                SeguimientoRecomendacion(
+                    user_id=estudiante.id,
+                    dimension="actividad_fisica",
+                    pregunta_num=4,
+                    nivel="POBRE",
+                )
+            )
+            return None
+        return original(*args, **kwargs)
+
+    service.repo.obtener_seguimiento = simula_carrera
+    try:
+        seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    finally:
+        service.repo.obtener_seguimiento = original
+
+    assert seguimiento is not None
+    assert seguimiento.pregunta_num == 4
 
 
 def test_completar_dos_veces_falla(db, estudiante, service):
