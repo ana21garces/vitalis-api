@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.data.tareas_catalogo import DIMENSION_LABELS
+from app.models.asistente import AsistenteSaludo
 from app.models.user import User
 from app.repositories import encuesta_hplp_repository as encuesta_repo
-from app.services.gamificacion_service import GamificacionService
+from app.services.gamificacion_service import GamificacionService, hoy_bogota
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,35 @@ def _generar_con_gemini(datos: dict, nombre: str) -> str | None:
     return None
 
 
+def _saludo_del_dia(db: Session, user: User, datos: dict, nombre: str) -> str:
+    if not datos["misiones_pendientes"]:
+        return _mensaje_respaldo(datos, nombre)
+
+    hoy = hoy_bogota()
+    try:
+        cacheado = (
+            db.query(AsistenteSaludo.mensaje)
+            .filter(AsistenteSaludo.user_id == user.id, AsistenteSaludo.fecha == hoy)
+            .scalar()
+        )
+    except Exception:
+        db.rollback()
+        cacheado = None
+    if cacheado:
+        return cacheado
+
+    generado = _generar_con_gemini(datos, nombre)
+    if not generado:
+        return _mensaje_respaldo(datos, nombre)
+
+    try:
+        db.add(AsistenteSaludo(user_id=user.id, fecha=hoy, mensaje=generado))
+        db.commit()
+    except Exception:
+        db.rollback()
+    return generado
+
+
 def generar_mensaje(db: Session, user: User) -> dict:
     try:
         datos = _datos_del_dia(db, user)
@@ -96,7 +126,7 @@ def generar_mensaje(db: Session, user: User) -> dict:
     primer_nombre = (user.full_name or "").strip().split(" ")[0] or "estudiante"
     pendientes = len(datos["misiones_pendientes"])
 
-    mensaje = _generar_con_gemini(datos, primer_nombre) or _mensaje_respaldo(datos, primer_nombre)
+    mensaje = _saludo_del_dia(db, user, datos, primer_nombre)
 
     return {
         "mensaje": mensaje,
