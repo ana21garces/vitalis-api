@@ -8,6 +8,7 @@ from app.models.asistente import AsistenteSaludo
 from app.models.user import User
 from app.repositories import encuesta_hplp_repository as encuesta_repo
 from app.services.gamificacion_service import GamificacionService, hoy_bogota
+from app.services.seguimiento_recomendacion_service import SeguimientoRecomendacionService
 
 logger = logging.getLogger(__name__)
 
@@ -20,28 +21,54 @@ PREFIJO_A_DIMENSION = {
     "pp": "psicologia_positiva",
 }
 
+# Mismo orden que la sección "Dimensiones prioritarias" del dashboard: por índice
+# de menor a mayor, y los empates en este orden.
+ORDEN_DASHBOARD = ["rs", "pp", "af", "ri", "n", "me"]
+
 DATOS_VACIOS = {
     "misiones_pendientes": [],
-    "dimensiones_prioritarias": [],
+    "plan": [],
 }
 
 
 def _dimensiones_prioritarias(encuesta) -> list[str]:
     if encuesta is None or getattr(encuesta, "nivel_global", None) == "Excelente":
         return []
-    indices = {p: (getattr(encuesta, f"{p}_indice", None) or 0.0) for p in PREFIJO_A_DIMENSION}
-    corte = sorted(indices.values())[min(2, len(indices) - 1)]
-    prioritarias = [p for p, idx in indices.items() if idx <= corte]
-    return sorted(DIMENSION_LABELS[PREFIJO_A_DIMENSION[p]] for p in prioritarias)
+    indices = [(p, getattr(encuesta, f"{p}_indice", None) or 0.0) for p in ORDEN_DASHBOARD]
+    ordenadas = sorted(indices, key=lambda par: par[1])
+    corte = ordenadas[min(2, len(ordenadas) - 1)][1]
+    return [PREFIJO_A_DIMENSION[p] for p, idx in ordenadas if idx <= corte]
+
+
+def _plan_con_progreso(db: Session, user: User, encuesta) -> list[dict]:
+    prioritarias = _dimensiones_prioritarias(encuesta)
+    if not prioritarias:
+        return []
+
+    progreso = SeguimientoRecomendacionService(db).progreso_general(user, encuesta)
+    por_dimension = {d.dimension: d for d in progreso.dimensiones}
+
+    plan = []
+    for dimension in prioritarias:
+        avance = por_dimension.get(dimension)
+        plan.append({
+            "dimension": dimension,
+            "label": DIMENSION_LABELS[dimension],
+            "completadas": avance.completadas if avance else 0,
+            "total": avance.total if avance else 0,
+            "activas": avance.activas if avance else 0,
+            "registradas_hoy": avance.registradas_hoy if avance else 0,
+        })
+    return plan
 
 
 def _datos_del_dia(db: Session, user: User) -> dict:
     misiones = GamificacionService(db).obtener_misiones_hoy(user)
     misiones_pendientes = [m.titulo for m in misiones.misiones if not m.completada]
-    prioritarias = _dimensiones_prioritarias(encuesta_repo.obtener_ultimo(db, user.id))
+    encuesta = encuesta_repo.obtener_ultimo(db, user.id)
     return {
         "misiones_pendientes": misiones_pendientes,
-        "dimensiones_prioritarias": prioritarias,
+        "plan": _plan_con_progreso(db, user, encuesta),
     }
 
 
@@ -53,7 +80,7 @@ def _mensaje_respaldo(datos: dict, nombre: str) -> str:
 
 def _prompt(datos: dict) -> str:
     misiones = ", ".join(datos["misiones_pendientes"]) or "ninguna"
-    prioritarias = ", ".join(datos["dimensiones_prioritarias"]) or "ninguna"
+    prioritarias = ", ".join(p["label"] for p in datos["plan"]) or "ninguna"
     return (
         'Eres "Asistente UnacHealth", un asistente breve y motivador de una '
         "plataforma universitaria de bienestar. Escribe un saludo MUY corto (1 o 2 "
@@ -131,7 +158,7 @@ def generar_mensaje(db: Session, user: User) -> dict:
     return {
         "mensaje": mensaje,
         "misiones": datos["misiones_pendientes"],
-        "plan": datos["dimensiones_prioritarias"],
+        "plan": datos["plan"],
         "pendientes": pendientes,
         "todo_hecho": pendientes == 0,
     }
