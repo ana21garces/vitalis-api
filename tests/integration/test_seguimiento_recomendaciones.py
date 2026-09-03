@@ -15,6 +15,23 @@ def test_dimension_invalida(client, auth_headers):
     assert res.status_code == 422
 
 
+def test_no_se_completa_sin_haber_registrado_ningun_dia(client, auth_headers):
+    """Marcarla como completada con cero días registrados inflaba el
+    cumplimiento: alguien "completaba" todo su plan sin haber hecho nada."""
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    tarjetas = client.get(f"{SEG_URL}/actividad-fisica/tarjetas", headers=auth_headers).json()
+    seguimiento_id = tarjetas["tarjetas"][0]["seguimiento"]["id"]
+
+    res = client.post(f"{SEG_URL}/{seguimiento_id}/completar", headers=auth_headers)
+    assert res.status_code == 400
+    assert "al menos" in res.json()["detail"]
+
+    client.post(f"{SEG_URL}/{seguimiento_id}/registrar-dia", json={}, headers=auth_headers)
+    res = client.post(f"{SEG_URL}/{seguimiento_id}/completar", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()["estado"] == "completada"
+
+
 def test_flujo_completo_registrar_dia_y_completar(client, auth_headers, act_fisica_headers):
     client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
 

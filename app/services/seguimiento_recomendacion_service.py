@@ -61,6 +61,8 @@ from app.services.recomendaciones_rs_service import (
 XP_POR_DIA = 15
 XP_POR_COMPLETAR = 50
 
+DIAS_MINIMOS_PARA_COMPLETAR = 1
+
 MENSAJE_CIERRE = "Completaste tu mejora de hábitos en esta dimensión por este momento."
 
 DIMENSION_A_FUNCION = {
@@ -233,6 +235,11 @@ class SeguimientoRecomendacionService:
             raise ValueError("Seguimiento no encontrado")
         if seguimiento.estado == "completada":
             raise ValueError("Esta recomendación ya fue marcada como completada")
+        if seguimiento.total_dias_registrados < DIAS_MINIMOS_PARA_COMPLETAR:
+            raise ValueError(
+                f"Registra al menos {DIAS_MINIMOS_PARA_COMPLETAR} día antes de marcarla "
+                "como completada"
+            )
 
         seguimiento.estado = "completada"
         seguimiento.completada_at = datetime.now(timezone.utc)
