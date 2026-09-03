@@ -115,6 +115,27 @@ def test_el_plan_refleja_una_recomendacion_completada(client, auth_headers):
     assert avance[dimension] == 1
 
 
+def test_un_fallo_de_gemini_no_reintenta_el_resto_del_dia(client, auth_headers, monkeypatch):
+    """Sin esto, pasada la cuota diaria cada apertura de la burbuja gastaba otro
+    intento: se guarda el respaldo para no volver a llamar hasta mañana."""
+    import app.services.asistente_service as svc
+
+    llamadas = {"n": 0}
+
+    def falla(datos, nombre):
+        llamadas["n"] += 1
+        return None
+
+    monkeypatch.setattr(svc, "_generar_con_gemini", falla)
+
+    r1 = client.get("/api/v1/asistente/mensaje", headers=auth_headers)
+    r2 = client.get("/api/v1/asistente/mensaje", headers=auth_headers)
+
+    assert r1.json()["mensaje"] == r2.json()["mensaje"]
+    assert r1.json()["mensaje"].strip() != ""
+    assert llamadas["n"] == 1
+
+
 def test_no_estudiante_recibe_mensaje_vacio(client, capellan_headers):
     res = client.get("/api/v1/asistente/mensaje", headers=capellan_headers)
     assert res.status_code == 200

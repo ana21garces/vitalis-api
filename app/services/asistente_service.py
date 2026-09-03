@@ -131,16 +131,15 @@ def _saludo_del_dia(db: Session, user: User, datos: dict, nombre: str) -> str:
     if cacheado:
         return cacheado
 
-    generado = _generar_con_gemini(datos, nombre)
-    if not generado:
-        return _mensaje_respaldo(datos, nombre)
-
+    # Se guarda el resultado incluso cuando Gemini falla: si no, un límite de
+    # cuota hacía que cada apertura de la burbuja reintentara y quemara el resto.
+    saludo = _generar_con_gemini(datos, nombre) or _mensaje_respaldo(datos, nombre)
     try:
-        db.add(AsistenteSaludo(user_id=user.id, fecha=hoy, mensaje=generado))
+        db.add(AsistenteSaludo(user_id=user.id, fecha=hoy, mensaje=saludo))
         db.commit()
     except Exception:
         db.rollback()
-    return generado
+    return saludo
 
 
 def generar_mensaje(db: Session, user: User) -> dict:
