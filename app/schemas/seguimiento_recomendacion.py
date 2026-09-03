@@ -59,6 +59,7 @@ class ProgresoDimension(BaseModel):
     total: int
     activas: int
     completadas: int
+    registradas_hoy: int = 0
     mensaje_cierre: str | None
 
 

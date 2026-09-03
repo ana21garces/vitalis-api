@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.data.tareas_catalogo import DIMENSION_LABELS
@@ -59,6 +60,8 @@ from app.services.recomendaciones_rs_service import (
 
 XP_POR_DIA = 15
 XP_POR_COMPLETAR = 50
+
+DIAS_MINIMOS_PARA_COMPLETAR = 1
 
 MENSAJE_CIERRE = "Completaste tu mejora de hábitos en esta dimensión por este momento."
 
@@ -120,14 +123,23 @@ class SeguimientoRecomendacionService:
         existente = self.repo.obtener_seguimiento(user_id, dimension, pregunta_num, nivel)
         if existente:
             return existente
-        return self.repo.crear_seguimiento(
-            SeguimientoRecomendacion(
-                user_id=user_id,
-                dimension=dimension,
-                pregunta_num=pregunta_num,
-                nivel=nivel,
+        try:
+            return self.repo.crear_seguimiento(
+                SeguimientoRecomendacion(
+                    user_id=user_id,
+                    dimension=dimension,
+                    pregunta_num=pregunta_num,
+                    nivel=nivel,
+                )
             )
-        )
+        except IntegrityError:
+            # Otra petición simultánea ya lo creó (la vista se abre y dispara
+            # dos veces): se recupera el que quedó en vez de fallar.
+            self.db.rollback()
+            creado = self.repo.obtener_seguimiento(user_id, dimension, pregunta_num, nivel)
+            if creado is None:
+                raise
+            return creado
 
     def obtener_tarjetas_con_seguimiento(
         self, user: User, dimension: str, encuesta: EncuestaHplp,
@@ -223,6 +235,11 @@ class SeguimientoRecomendacionService:
             raise ValueError("Seguimiento no encontrado")
         if seguimiento.estado == "completada":
             raise ValueError("Esta recomendación ya fue marcada como completada")
+        if seguimiento.total_dias_registrados < DIAS_MINIMOS_PARA_COMPLETAR:
+            raise ValueError(
+                f"Registra al menos {DIAS_MINIMOS_PARA_COMPLETAR} día antes de marcarla "
+                "como completada"
+            )
 
         seguimiento.estado = "completada"
         seguimiento.completada_at = datetime.now(timezone.utc)
@@ -249,13 +266,18 @@ class SeguimientoRecomendacionService:
             total = len(tarjetas)
 
             seguimientos = self.repo.obtener_seguimientos_dimension(user.id, dimension)
-            completados_por_clave = {
-                (s.pregunta_num, s.nivel): s.estado == "completada" for s in seguimientos
-            }
-            completadas = sum(
-                1 for t in tarjetas
-                if completados_por_clave.get((t["pregunta_num"], t["nivel"]))
-            )
+            por_clave = {(s.pregunta_num, s.nivel): s for s in seguimientos}
+            completadas = 0
+            registradas_hoy = 0
+            hoy = hoy_bogota()
+            for tarjeta in tarjetas:
+                seguimiento = por_clave.get((tarjeta["pregunta_num"], tarjeta["nivel"]))
+                if seguimiento is None:
+                    continue
+                if seguimiento.estado == "completada":
+                    completadas += 1
+                elif seguimiento.ultima_fecha_registro == hoy:
+                    registradas_hoy += 1
             activas = total - completadas
 
             mensaje_cierre = MENSAJE_CIERRE if total > 0 and completadas == total else None
@@ -267,6 +289,7 @@ class SeguimientoRecomendacionService:
                     total=total,
                     activas=activas,
                     completadas=completadas,
+                    registradas_hoy=registradas_hoy,
                     mensaje_cierre=mensaje_cierre,
                 )
             )

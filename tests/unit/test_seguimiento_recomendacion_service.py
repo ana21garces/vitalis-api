@@ -9,7 +9,10 @@ import pytest
 from app.models.gamificacion import XpEvento
 from app.models.notificacion import Notificacion
 from app.models.encuesta_hplp import EncuestaHplp
-from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento
+from app.models.seguimiento_recomendacion import (
+    RegistroDiarioSeguimiento,
+    SeguimientoRecomendacion,
+)
 from app.models.user import User, UserRole
 from app.services.encuesta_hplp_service import ITEM_FIELDS
 from app.services.gamificacion_service import hoy_bogota
@@ -119,8 +122,40 @@ def test_registro_duplicado_mismo_dia_falla(db, estudiante, service):
         service.registrar_dia(estudiante, seguimiento.id, notas=None)
 
 
+def test_obtener_o_crear_tolera_dos_peticiones_a_la_vez(db, estudiante, service):
+    """Abrir el plan dispara la petición dos veces (el efecto se ejecuta doble
+    en desarrollo, y en producción pasa con dos pestañas): la segunda chocaba
+    contra la restricción única y la pantalla quedaba en error."""
+    original = service.repo.obtener_seguimiento
+    llamadas = {"n": 0}
+
+    def simula_carrera(*args, **kwargs):
+        llamadas["n"] += 1
+        if llamadas["n"] == 1:
+            service.repo.crear_seguimiento(
+                SeguimientoRecomendacion(
+                    user_id=estudiante.id,
+                    dimension="actividad_fisica",
+                    pregunta_num=4,
+                    nivel="POBRE",
+                )
+            )
+            return None
+        return original(*args, **kwargs)
+
+    service.repo.obtener_seguimiento = simula_carrera
+    try:
+        seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    finally:
+        service.repo.obtener_seguimiento = original
+
+    assert seguimiento is not None
+    assert seguimiento.pregunta_num == 4
+
+
 def test_completar_dos_veces_falla(db, estudiante, service):
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
     service.completar_manualmente(estudiante, seguimiento.id)
 
     with pytest.raises(ValueError):
@@ -129,6 +164,7 @@ def test_completar_dos_veces_falla(db, estudiante, service):
 
 def test_registrar_dia_sobre_completada_falla(db, estudiante, service):
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
     service.completar_manualmente(estudiante, seguimiento.id)
 
     with pytest.raises(ValueError):
@@ -159,6 +195,7 @@ def test_progreso_general_activas_y_completadas(db, estudiante, service):
     assert af_inicial.mensaje_cierre is None
 
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
     service.completar_manualmente(estudiante, seguimiento.id)
 
     progreso_final = service.progreso_general(estudiante, encuesta)
@@ -179,6 +216,7 @@ def test_progreso_general_mensaje_cierre_al_completar_todo(db, estudiante, servi
 
     for pregunta_num in (3, 9, 15, 22, 28, 34, 41):
         seguimiento = service._obtener_o_crear(estudiante.id, "responsabilidad_salud", pregunta_num, "POBRE")
+        service.registrar_dia(estudiante, seguimiento.id, notas=None)
         service.completar_manualmente(estudiante, seguimiento.id)
 
     final = service.progreso_general(estudiante, encuesta)
@@ -208,6 +246,8 @@ def test_registrar_dia_otorga_xp(db, estudiante, service):
 
 def test_completar_otorga_xp(db, estudiante, service):
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
+    db.refresh(estudiante)
     xp_previo = estudiante.total_xp
 
     service.completar_manualmente(estudiante, seguimiento.id)
@@ -227,6 +267,7 @@ def test_completar_otorga_xp(db, estudiante, service):
 def test_completar_notifica_a_un_profesional_activo(db, estudiante, service):
     profesional = _crear_usuario(db, email="af@test.com", role=UserRole.ACTIVIDAD_FISICA)
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
 
     service.completar_manualmente(estudiante, seguimiento.id)
 
@@ -244,6 +285,7 @@ def test_completar_notifica_a_varios_profesionales_del_mismo_rol(db, estudiante,
     p1 = _crear_usuario(db, email="af1@test.com", role=UserRole.ACTIVIDAD_FISICA)
     p2 = _crear_usuario(db, email="af2@test.com", role=UserRole.ACTIVIDAD_FISICA)
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
 
     service.completar_manualmente(estudiante, seguimiento.id)
 
@@ -257,6 +299,7 @@ def test_completar_sin_profesionales_no_falla(db, estudiante, service):
     seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
 
     # No debe lanzar excepción aunque no haya ningún usuario con rol actividad_fisica.
+    service.registrar_dia(estudiante, seguimiento.id, notas=None)
     resultado = service.completar_manualmente(estudiante, seguimiento.id)
 
     assert resultado.estado == "completada"

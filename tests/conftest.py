@@ -13,11 +13,12 @@ from app.models import ciclo_medicion as _ciclo_model # noqa: F401 — registra 
 from app.models import seguimiento_recomendacion as _seg_model  # noqa: F401 — registra tablas de seguimiento
 from app.models import gamificacion as _gam_model  # noqa: F401 — registra misiones_diarias y xp_eventos
 from app.models import sesion as _sesion_model  # noqa: F401 — registra tabla sesiones (auditoría)
+from app.models import asistente as _asist_model  # noqa: F401 — registra tabla asistente_saludos
 
 _SQLITE_TABLES = [
     "users", "encuestas_hplp", "notificaciones", "ciclos_medicion",
     "seguimientos_recomendacion", "registros_diarios_seguimiento",
-    "misiones_diarias", "xp_eventos", "sesiones",
+    "misiones_diarias", "xp_eventos", "sesiones", "asistente_saludos",
 ]
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
@@ -51,6 +52,7 @@ def limpiar_tablas():
     db.execute(text("DELETE FROM xp_eventos"))
     db.execute(text("DELETE FROM misiones_diarias"))
     db.execute(text("DELETE FROM sesiones"))
+    db.execute(text("DELETE FROM asistente_saludos"))
     db.execute(text("DELETE FROM notificaciones"))
     db.execute(text("DELETE FROM encuestas_hplp"))
     db.execute(text("DELETE FROM ciclos_medicion"))
