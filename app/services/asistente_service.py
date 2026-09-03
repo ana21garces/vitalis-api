@@ -28,6 +28,7 @@ ORDEN_DASHBOARD = ["rs", "pp", "af", "ri", "n", "me"]
 DATOS_VACIOS = {
     "misiones_pendientes": [],
     "plan": [],
+    "racha": 0,
 }
 
 
@@ -69,6 +70,7 @@ def _datos_del_dia(db: Session, user: User) -> dict:
     return {
         "misiones_pendientes": misiones_pendientes,
         "plan": _plan_con_progreso(db, user, encuesta),
+        "racha": user.streak_days or 0,
     }
 
 
@@ -79,19 +81,26 @@ def _mensaje_respaldo(datos: dict, nombre: str) -> str:
 
 
 def _prompt(datos: dict) -> str:
-    misiones = ", ".join(datos["misiones_pendientes"]) or "ninguna"
-    prioritarias = ", ".join(p["label"] for p in datos["plan"]) or "ninguna"
+    pendientes = len(datos["misiones_pendientes"])
+    foco = datos["plan"][0]["label"] if datos["plan"] else "su bienestar general"
+    racha = datos["racha"]
     return (
         'Eres "Asistente UnacHealth", un asistente breve y motivador de una '
         "plataforma universitaria de bienestar. Escribe un saludo MUY corto (1 o 2 "
         "líneas), cálido, en español, tuteando al estudiante y llamándolo {nombre}.\n"
-        f"- Misiones diarias pendientes: {misiones}\n"
-        f"- Dimensiones prioritarias a mejorar: {prioritarias}\n"
-        "NO enumeres los retos (se muestran aparte en una lista). Solo salúdalo y "
-        "anímalo. Si no hay misiones pendientes, felicítalo por completarlas.\n"
-        "No des consejos médicos ni diagnósticos, no inventes datos y usa uno o dos "
-        "emojis como mucho. Devuelve SOLO el saludo, sin comillas ni títulos, y "
-        "escribe {nombre} tal cual donde quieras poner el nombre."
+        f"- Misiones diarias que le faltan hoy: {pendientes}\n"
+        f"- Dimensión en la que está más bajo: {foco}\n"
+        f"- Días seguidos registrando actividades: {racha}\n"
+        f"Menciona «{foco}» por su nombre para que sepa dónde poner el foco hoy"
+        + (
+            f", y felicítalo por llevar {racha} días seguidos.\n"
+            if racha > 1
+            else ".\n"
+        )
+        + "NO enumeres las misiones ni las recomendaciones (se muestran aparte en una "
+        "lista). No des consejos médicos ni diagnósticos, no inventes datos ni cifras "
+        "que no te di, y usa uno o dos emojis como mucho. Devuelve SOLO el saludo, sin "
+        "comillas ni títulos, y escribe {nombre} tal cual donde quieras poner el nombre."
     )
 
 
