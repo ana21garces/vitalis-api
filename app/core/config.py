@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
+    # IA — asistente de retos (Gemini). Si no hay clave, el asistente usa un
+    # mensaje de respaldo sin IA (no rompe nada).
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-flash-latest"
+
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
