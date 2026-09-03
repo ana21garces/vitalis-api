@@ -52,6 +52,26 @@ venv/bin/python -m pytest -q
 Los tests corren contra SQLite y no tocan la base de datos real, así que es
 seguro ejecutarlos en el servidor.
 
+### 1.1 Asistente con IA (Gemini)
+
+El asistente del estudiante genera su saludo con Gemini. Sin la clave la
+plataforma **no falla**: usa un mensaje de respaldo escrito en el código. Para
+activarlo, en el `.env` del servidor:
+
+```
+GEMINI_API_KEY=la_clave
+GEMINI_MODEL=gemini-flash-latest
+```
+
+La clave se crea en `aistudio.google.com/apikey`. **La cuenta institucional
+tiene bloqueado el acceso al API**, así que hay que generarla con una cuenta
+personal de Google.
+
+El nivel gratuito da **20 solicitudes por día en total** (no por usuario). El
+saludo se cachea en `asistente_saludos` una vez por estudiante por día, así que
+el consumo real es de una llamada por persona; con más estudiantes que eso hay
+que activar facturación en Google Cloud.
+
 ### 2. Servicios
 
 `linger` es lo que permite que los servicios de usuario sigan vivos tras
