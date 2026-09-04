@@ -122,6 +122,33 @@ def test_registro_duplicado_mismo_dia_falla(db, estudiante, service):
         service.registrar_dia(estudiante, seguimiento.id, notas=None)
 
 
+def test_doble_clic_en_lo_hice_hoy_da_el_mismo_mensaje(db, estudiante, service):
+    """Dos envíos a la vez: el aviso de "ya registraste hoy" no alcanza a ver
+    el registro de la otra petición, así que el choque contra la restricción
+    única tiene que salir como el mismo error de siempre, no como un 500."""
+    seguimiento = service._obtener_o_crear(estudiante.id, "actividad_fisica", 4, "POBRE")
+    original = service.repo.obtener_registro_dia
+
+    def simula_carrera(seguimiento_id, fecha):
+        service.repo.obtener_registro_dia = original
+        service.registrar_dia(estudiante, seguimiento.id, notas=None)
+        return None
+
+    service.repo.obtener_registro_dia = simula_carrera
+    try:
+        with pytest.raises(ValueError, match="Ya registraste"):
+            service.registrar_dia(estudiante, seguimiento.id, notas=None)
+    finally:
+        service.repo.obtener_registro_dia = original
+
+    assert (
+        db.query(RegistroDiarioSeguimiento)
+        .filter(RegistroDiarioSeguimiento.seguimiento_id == seguimiento.id)
+        .count()
+        == 1
+    )
+
+
 def test_obtener_o_crear_tolera_dos_peticiones_a_la_vez(db, estudiante, service):
     """Abrir el plan dispara la petición dos veces (el efecto se ejecuta doble
     en desarrollo, y en producción pasa con dos pestañas): la segunda chocaba
