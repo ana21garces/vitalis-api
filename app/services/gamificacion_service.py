@@ -6,6 +6,7 @@ import random
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 try:
@@ -123,7 +124,7 @@ def _elegir_tarea(
 
 def _generar_misiones(user_id: uuid.UUID, db: Session, fecha: date) -> list[MisionDiaria]:
     repo = GamificacionRepository(db)
-    recientes = repo.tareas_recientes(user_id, dias=2)
+    recientes = repo.tareas_recientes(user_id, fecha, dias=2)
     rng = random.Random(f"{user_id}-{fecha.isoformat()}")
 
     orden = _dimensiones_ordenadas(db, user_id)
@@ -195,7 +196,7 @@ class GamificacionService:
         fecha = hoy_bogota()
         misiones = self.repo.obtener_misiones_dia(user.id, fecha)
         if not misiones:
-            misiones = self.repo.crear_misiones(_generar_misiones(user.id, self.db, fecha))
+            misiones = self._crear_misiones_del_dia(user.id, fecha)
 
         completadas = sum(1 for m in misiones if m.completada_at)
         return MisionesHoyResponse(
@@ -206,6 +207,19 @@ class GamificacionService:
             bonus_disponible=BONUS_DIA_XP if completadas < len(misiones) else 0,
             progreso=progreso_de_usuario(user),
         )
+
+    def _crear_misiones_del_dia(self, user_id: uuid.UUID, fecha: date) -> list[MisionDiaria]:
+        try:
+            return self.repo.crear_misiones(_generar_misiones(user_id, self.db, fecha))
+        except IntegrityError:
+            # El dashboard y la burbuja del asistente piden a la vez en el
+            # primer acceso del día: las dos ven la tabla vacía y las dos
+            # insertan. Se recuperan las que quedaron en vez de fallar.
+            self.db.rollback()
+            creadas = self.repo.obtener_misiones_dia(user_id, fecha)
+            if not creadas:
+                raise
+            return creadas
 
     def _otorgar_xp(
         self,
