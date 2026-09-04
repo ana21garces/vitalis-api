@@ -186,9 +186,16 @@ class SeguimientoRecomendacionService:
         if self.repo.obtener_registro_dia(seguimiento.id, hoy):
             raise ValueError("Ya registraste esta recomendación hoy")
 
-        registro = self.repo.crear_registro(
-            RegistroDiarioSeguimiento(seguimiento_id=seguimiento.id, fecha=hoy, notas=notas)
-        )
+        try:
+            registro = self.repo.crear_registro(
+                RegistroDiarioSeguimiento(seguimiento_id=seguimiento.id, fecha=hoy, notas=notas)
+            )
+        except IntegrityError:
+            # Doble clic en "Lo hice hoy": el aviso de arriba no alcanza a ver
+            # el registro de la otra petición, así que se traduce el choque al
+            # mismo mensaje en vez de dejar un 500.
+            self.db.rollback()
+            raise ValueError("Ya registraste esta recomendación hoy")
 
         racha_aumento = self._actualizar_racha(seguimiento, hoy)
         seguimiento.total_dias_registrados += 1
