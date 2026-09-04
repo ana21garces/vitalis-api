@@ -8,6 +8,7 @@ mismo mecanismo de Duvan (`otorgar_xp_externo`).
 from __future__ import annotations
 
 from sqlalchemy import distinct, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.data.insignias_catalogo import INSIGNIAS, InsigniaDef
@@ -127,28 +128,41 @@ class InsigniasService:
         }.get(insignia.id, lambda: False)()
 
     # ── API ───────────────────────────────────────────────────────────────
-    def obtener(self, user: User) -> InsigniasResponse:
-        ganadas = {
+    def _ganadas(self, user_id) -> dict[str, InsigniaUsuario]:
+        return {
             row.insignia_id: row
-            for row in self.db.query(InsigniaUsuario).filter(InsigniaUsuario.user_id == user.id).all()
+            for row in self.db.query(InsigniaUsuario).filter(InsigniaUsuario.user_id == user_id).all()
         }
+
+    def obtener(self, user: User) -> InsigniasResponse:
+        ganadas = self._ganadas(user.id)
         gamificacion = GamificacionService(self.db)
         nuevas: set[str] = set()
+        relectura = False
 
-        for insignia in INSIGNIAS:
-            if insignia.id in ganadas:
-                continue
-            if self._cumple(insignia, user.id):
-                self.db.add(InsigniaUsuario(user_id=user.id, insignia_id=insignia.id))
-                gamificacion.otorgar_xp_externo(user, insignia.xp, "insignia", insignia.id)
-                nuevas.add(insignia.id)
+        try:
+            for insignia in INSIGNIAS:
+                if insignia.id in ganadas:
+                    continue
+                if self._cumple(insignia, user.id):
+                    self.db.add(InsigniaUsuario(user_id=user.id, insignia_id=insignia.id))
+                    gamificacion.otorgar_xp_externo(user, insignia.xp, "insignia", insignia.id)
+                    nuevas.add(insignia.id)
 
-        if nuevas:
-            self.db.commit()
-            ganadas = {
-                row.insignia_id: row
-                for row in self.db.query(InsigniaUsuario).filter(InsigniaUsuario.user_id == user.id).all()
-            }
+            if nuevas:
+                self.db.commit()
+                relectura = True
+        except IntegrityError:
+            # Dos peticiones a la vez (dos pestañas, o entrar al perfil con la
+            # del panel todavía en vuelo) evalúan lo mismo y las dos intentan
+            # otorgar la misma insignia. La que pierde se queda con lo que
+            # alcanzó a guardar la otra en vez de responder 500.
+            self.db.rollback()
+            nuevas = set()
+            relectura = True
+
+        if relectura:
+            ganadas = self._ganadas(user.id)
 
         estados = [
             InsigniaEstado(

@@ -14,11 +14,13 @@ from app.models import seguimiento_recomendacion as _seg_model  # noqa: F401 —
 from app.models import gamificacion as _gam_model  # noqa: F401 — registra misiones_diarias y xp_eventos
 from app.models import sesion as _sesion_model  # noqa: F401 — registra tabla sesiones (auditoría)
 from app.models import asistente as _asist_model  # noqa: F401 — registra tabla asistente_saludos
+from app.models import insignia as _insignia_model  # noqa: F401 — registra tabla insignias_usuario
 
 _SQLITE_TABLES = [
     "users", "encuestas_hplp", "notificaciones", "ciclos_medicion",
     "seguimientos_recomendacion", "registros_diarios_seguimiento",
     "misiones_diarias", "xp_eventos", "sesiones", "asistente_saludos",
+    "insignias_usuario",
 ]
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
@@ -49,6 +51,7 @@ def limpiar_tablas():
     db = TestingSessionLocal()
     db.execute(text("DELETE FROM registros_diarios_seguimiento"))
     db.execute(text("DELETE FROM seguimientos_recomendacion"))
+    db.execute(text("DELETE FROM insignias_usuario"))
     db.execute(text("DELETE FROM xp_eventos"))
     db.execute(text("DELETE FROM misiones_diarias"))
     db.execute(text("DELETE FROM sesiones"))
