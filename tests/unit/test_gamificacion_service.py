@@ -184,5 +184,9 @@ def test_completar_otra_mision_el_mismo_dia_no_repite_el_bonus_de_racha(
 
     db.refresh(estudiante)
     assert estudiante.streak_days == 3
-    assert r1.xp_ganado > r2.xp_ganado  # la 1ª llevó el bonus de racha, la 2ª no
+    # La 1ª completada del día llevó el bonus de racha; la 2ª solo la XP de
+    # su misión (aún no se completan las 4, así que tampoco hay bonus de día).
+    assert r1.xp_ganado == misiones[0].xp_otorgado + 10
+    assert r2.xp_ganado == misiones[1].xp_otorgado
+    # Y el bonus de racha_3 quedó registrado una sola vez.
     assert len(_xp_de(db, estudiante, "racha_3")) == 1
