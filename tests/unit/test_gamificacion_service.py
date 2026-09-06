@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import pytest
 
-from app.models.gamificacion import MisionDiaria
+from app.models.gamificacion import MisionDiaria, XpEvento
 from app.models.user import User, UserRole
 from app.repositories.gamificacion_repository import GamificacionRepository
 from app.services.gamificacion_service import (
@@ -96,3 +96,93 @@ def test_tareas_recientes_ignora_el_dia_que_se_genera(db, estudiante):
     recientes = repo.tareas_recientes(estudiante.id, hoy)
 
     assert recientes == {m.tarea_id for m in ayer}
+
+
+# ── Bonus por racha de misiones (chequeo 6.4) ────────────────────────────────
+
+
+def _xp_de(db, estudiante, motivo):
+    return [
+        e
+        for e in db.query(XpEvento)
+        .filter(XpEvento.user_id == estudiante.id, XpEvento.motivo == motivo)
+        .all()
+    ]
+
+
+def test_racha_de_3_dias_da_el_bonus_una_sola_vez(db, estudiante, service):
+    """Al llegar la racha de misiones a 3 días se otorga RACHA_3_BONUS una vez.
+    Si la racha se rompe y vuelve a 3, no se otorga otra vez."""
+    hoy = hoy_bogota()
+
+    # Racha de 2 -> completar hoy la sube a 3 y dispara el bonus.
+    estudiante.streak_days = 2
+    estudiante.last_streak_date = hoy - timedelta(days=1)
+    db.commit()
+    service.completar_mision(
+        estudiante,
+        GamificacionRepository(db).crear_misiones(
+            _generar_misiones(estudiante.id, db, hoy)
+        )[0].id,
+    )
+    db.refresh(estudiante)
+    assert estudiante.streak_days == 3
+    racha_3 = _xp_de(db, estudiante, "racha_3")
+    assert len(racha_3) == 1
+    assert racha_3[0].xp == 10
+
+    # La racha se rompe y otro día vuelve a 3: el bonus NO se repite.
+    otro_dia = hoy + timedelta(days=5)
+    estudiante.streak_days = 2
+    estudiante.last_streak_date = otro_dia - timedelta(days=1)
+    db.commit()
+    service.completar_mision(
+        estudiante,
+        GamificacionRepository(db).crear_misiones(
+            _generar_misiones(estudiante.id, db, otro_dia)
+        )[0].id,
+    )
+    db.refresh(estudiante)
+    assert estudiante.streak_days == 3
+    assert len(_xp_de(db, estudiante, "racha_3")) == 1  # sigue siendo una sola
+
+
+def test_racha_de_7_dias_da_el_bonus_una_sola_vez(db, estudiante, service):
+    hoy = hoy_bogota()
+
+    estudiante.streak_days = 6
+    estudiante.last_streak_date = hoy - timedelta(days=1)
+    db.commit()
+    service.completar_mision(
+        estudiante,
+        GamificacionRepository(db).crear_misiones(
+            _generar_misiones(estudiante.id, db, hoy)
+        )[0].id,
+    )
+    db.refresh(estudiante)
+    assert estudiante.streak_days == 7
+    racha_7 = _xp_de(db, estudiante, "racha_7")
+    assert len(racha_7) == 1
+    assert racha_7[0].xp == 50
+
+
+def test_completar_otra_mision_el_mismo_dia_no_repite_el_bonus_de_racha(
+    db, estudiante, service
+):
+    """Dos misiones completadas el mismo día cuentan como un solo día de racha:
+    la segunda no vuelve a dar el bonus."""
+    hoy = hoy_bogota()
+    estudiante.streak_days = 2
+    estudiante.last_streak_date = hoy - timedelta(days=1)
+    db.commit()
+
+    misiones = GamificacionRepository(db).crear_misiones(
+        _generar_misiones(estudiante.id, db, hoy)
+    )
+    r1 = service.completar_mision(estudiante, misiones[0].id)
+    r2 = service.completar_mision(estudiante, misiones[1].id)
+
+    db.refresh(estudiante)
+    assert estudiante.streak_days == 3
+    assert r1.xp_ganado > r2.xp_ganado  # la 1ª llevó el bonus de racha, la 2ª no
+    assert len(_xp_de(db, estudiante, "racha_3")) == 1
