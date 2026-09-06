@@ -147,3 +147,43 @@ def test_refresh_usuario_desactivado(client):
 
     res = client.post(REFRESH_URL, json={"refresh_token": tokens["refresh_token"]})
     assert res.status_code == 403
+
+
+# ── Correo sin distinguir mayúsculas ──────────────────────────────────────
+
+def test_login_con_el_correo_en_mayusculas(client):
+    client.post(REGISTER_URL, json=VALID_USER)
+
+    res = client.post(
+        LOGIN_URL,
+        json={"email": VALID_USER["email"].upper(), "password": VALID_USER["password"]},
+    )
+
+    assert res.status_code == 200
+
+
+def test_registro_guarda_el_correo_en_minusculas(client):
+    res = client.post(REGISTER_URL, json={**VALID_USER, "email": "Ana@Vitalis.com"})
+
+    assert res.status_code == 201
+    assert res.json()["email"] == "ana@vitalis.com"
+
+
+def test_no_se_puede_registrar_el_mismo_correo_cambiando_mayusculas(client):
+    client.post(REGISTER_URL, json=VALID_USER)
+
+    res = client.post(REGISTER_URL, json={**VALID_USER, "email": VALID_USER["email"].upper()})
+
+    assert res.status_code == 409
+
+
+def test_verificar_correo_no_distingue_mayusculas(client):
+    client.post(REGISTER_URL, json=VALID_USER)
+
+    res = client.post(
+        "/api/v1/auth/verificar-correo",
+        json={"email": VALID_USER["email"].upper()},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["existe"] is True

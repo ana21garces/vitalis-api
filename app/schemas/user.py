@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from uuid import UUID
 from datetime import date, datetime
 from app.models.user import UserRole
+from app.schemas.comunes import CorreoNormalizado
 
 
 class UserResponse(BaseModel):
@@ -36,7 +37,7 @@ class CambiarEstadoRequest(BaseModel):
 
 class ActualizarPerfilRequest(BaseModel):
     full_name: str
-    email: EmailStr
+    email: CorreoNormalizado
     # Solo se exige cuando el correo cambia: el correo es el identificador de
     # acceso, así que cambiarlo tiene que pedir la contraseña actual (si no, un
     # token robado bastaría para quedarse con la cuenta).
@@ -108,7 +109,7 @@ class MensajeResponse(BaseModel):
 
 class CrearUsuarioRequest(BaseModel):
     full_name: str
-    email: EmailStr
+    email: CorreoNormalizado
     password: str
     role: UserRole = UserRole.STUDENT
 

@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 
@@ -8,7 +9,11 @@ class UserRepository:
         self.db = db
 
     def get_by_email(self, email: str) -> User | None:
-        return self.db.query(User).filter(User.email == email).first()
+        return (
+            self.db.query(User)
+            .filter(func.lower(User.email) == email.strip().lower())
+            .first()
+        )
 
     def get_by_id(self, user_id) -> User | None:
         return self.db.query(User).filter(User.id == user_id).first()
