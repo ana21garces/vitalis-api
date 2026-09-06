@@ -46,6 +46,17 @@ def setup_db():
 
 
 @pytest.fixture(autouse=True)
+def _reiniciar_throttles():
+    """Los limitadores de intentos viven en memoria del proceso: hay que
+    vaciarlos entre tests para que un test no herede los fallos de otro."""
+    from app.core import rate_limit
+    for t in (rate_limit.login_throttle, rate_limit.recuperacion_throttle):
+        t._fallos.clear()
+        t._bloqueo_hasta.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def limpiar_tablas():
     """Limpia las tablas antes de cada test para garantizar aislamiento."""
     db = TestingSessionLocal()

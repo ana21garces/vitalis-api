@@ -21,6 +21,20 @@ router = APIRouter(prefix="/gamificacion", tags=["Gamificación"])
 AVATAR_DIR = Path("uploads/avatars")
 AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp"}
+AVATAR_MAX_BYTES = 2 * 1024 * 1024
+_CHUNK = 64 * 1024
+
+
+def _tipo_real(cabecera: bytes) -> str | None:
+    """Detecta el formato por los bytes de cabecera, sin fiarse de lo que
+    declara el cliente (el `content_type` se puede falsear)."""
+    if cabecera.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if cabecera.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if cabecera[:4] == b"RIFF" and cabecera[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 @router.get("/misiones/hoy", response_model=MisionesHoyResponse)
@@ -82,24 +96,35 @@ async def subir_avatar(
             detail="Formato no soportado. Usa JPG, PNG o WebP.",
         )
 
-    ext = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-    }[archivo.content_type]
+    # Se lee por trozos y se corta en cuanto pasa del límite: así un archivo
+    # enorme no se llega a cargar entero en memoria.
+    contenido = bytearray()
+    while True:
+        trozo = await archivo.read(_CHUNK)
+        if not trozo:
+            break
+        contenido.extend(trozo)
+        if len(contenido) > AVATAR_MAX_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La imagen no puede superar 2 MB.",
+            )
 
-    destino = AVATAR_DIR / f"{current_user.id}{ext}"
-    contenido = await archivo.read()
-    if len(contenido) > 2 * 1024 * 1024:
+    # El formato se decide por los bytes reales, no por el content_type.
+    tipo = _tipo_real(bytes(contenido[:16]))
+    if tipo is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La imagen no puede superar 2 MB.",
+            detail="El archivo no es una imagen JPG, PNG o WebP válida.",
         )
+
+    ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[tipo]
+    destino = AVATAR_DIR / f"{current_user.id}{ext}"
 
     for viejo in AVATAR_DIR.glob(f"{current_user.id}.*"):
         viejo.unlink(missing_ok=True)
 
-    destino.write_bytes(contenido)
+    destino.write_bytes(bytes(contenido))
     current_user.avatar_url = f"/uploads/avatars/{current_user.id}{ext}"
     db.commit()
     db.refresh(current_user)

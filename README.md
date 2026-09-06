@@ -63,8 +63,10 @@ Positiva. No aplicar la numeración por módulo 6 del HPLP-II original: mezclar�
 | `capellan` | `/encuesta/capellan/psicologia-positiva` |
 | `actividad_fisica` | `/encuesta/actividad-fisica/resultados` |
 | `responsabilidad_salud` | `/encuesta/responsabilidad-salud/resultados` |
-| `admin` | `/encuesta/admin/resumen`, resetear encuestas |
-| `health_manager` | (reservado) solo filtros |
+| `relaciones_interpersonales` | `/encuesta/relaciones-interpersonales/resultados` |
+| `manejo_estres` | `/encuesta/manejo-estres/resultados` |
+| `nutricion` | `/encuesta/nutricion/resultados` |
+| `admin` | `/encuesta/admin/resumen`, gestión de usuarios, mediciones, anuncios, auditoría y reportes; entra además a las seis vistas por rol |
 
 ---
 

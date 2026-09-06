@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_db, get_current_user
+from app.core.rate_limit import recuperacion_throttle
 from app.models.user import User
 from app.repositories import sesion_repository
 from app.schemas.auth import (
@@ -25,6 +26,20 @@ def _ip_cliente(request: Request) -> str | None:
     if reenviada:
         return reenviada.split(",")[0].strip()
     return request.client.host if request.client else None
+
+
+def _frenar_recuperacion(request: Request) -> None:
+    """Limita los dos pasos de la recuperación de contraseña por IP: sin esto,
+    se pueden enumerar correos o probar restablecimientos en masa."""
+    clave = _ip_cliente(request) or "-"
+    espera = recuperacion_throttle.segundos_de_espera(clave)
+    if espera:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiadas solicitudes. Inténtalo de nuevo más tarde.",
+            headers={"Retry-After": str(espera)},
+        )
+    recuperacion_throttle.registrar_fallo(clave)
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -73,14 +88,16 @@ def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/verificar-correo", response_model=VerificarCorreoResponse, status_code=status.HTTP_200_OK)
-def verificar_correo(data: VerificarCorreoRequest, db: Session = Depends(get_db)):
+def verificar_correo(data: VerificarCorreoRequest, request: Request, db: Session = Depends(get_db)):
     """Indica si existe una cuenta con el correo dado (paso 1 de la recuperación)."""
+    _frenar_recuperacion(request)
     existe = AuthService(db).verificar_correo(data.email)
     return VerificarCorreoResponse(existe=existe)
 
 
 @router.post("/restablecer-clave", response_model=RestablecerClaveResponse, status_code=status.HTTP_200_OK)
-def restablecer_clave(data: RestablecerClaveRequest, db: Session = Depends(get_db)):
+def restablecer_clave(data: RestablecerClaveRequest, request: Request, db: Session = Depends(get_db)):
     """Restablece la contraseña de una cuenta existente (paso 2 de la recuperación)."""
+    _frenar_recuperacion(request)
     AuthService(db).restablecer_clave(data)
     return RestablecerClaveResponse(message="Contraseña actualizada correctamente")

@@ -116,10 +116,12 @@ def programar_seguimiento(
 
     vigente = repo.obtener_seguimiento_vigente(db)
     if vigente is not None:
+        estado_f = {"programado": "programada", "abierto": "abierta", "cerrado": "cerrada"}
+        detalle_estado = estado_f.get(vigente.estado(), vigente.estado())
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Ya hay una medición {vigente.estado()}: «{vigente.nombre}». "
+                f"Ya hay una medición {detalle_estado}: «{vigente.nombre}». "
                 "Ciérrala antes de programar otra."
             ),
         )

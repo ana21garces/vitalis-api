@@ -37,6 +37,10 @@ class CambiarEstadoRequest(BaseModel):
 class ActualizarPerfilRequest(BaseModel):
     full_name: str
     email: EmailStr
+    # Solo se exige cuando el correo cambia: el correo es el identificador de
+    # acceso, así que cambiarlo tiene que pedir la contraseña actual (si no, un
+    # token robado bastaría para quedarse con la cuenta).
+    current_password: str | None = None
 
     @field_validator("full_name")
     @classmethod

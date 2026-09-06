@@ -10,6 +10,13 @@ from app.core.security import hash_password, verify_password
 from app.models.user import User, UserRole
 from app.models.encuesta_hplp import EncuestaHplp
 from app.models.notificacion import Notificacion
+from app.models.sesion import Sesion
+from app.models.gamificacion import MisionDiaria, XpEvento
+from app.models.insignia import InsigniaUsuario
+from app.models.seguimiento_recomendacion import (
+    RegistroDiarioSeguimiento,
+    SeguimientoRecomendacion,
+)
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
     UserResponse,
@@ -47,10 +54,19 @@ def actualizar_perfil_propio(
     """El usuario actualiza su nombre y su correo.
 
     El correo es el identificador de acceso: si lo cambia, a partir del próximo
-    inicio de sesión entra con el nuevo. Se valida que no lo tenga otra cuenta.
+    inicio de sesión entra con el nuevo. Para cambiarlo se exige la contraseña
+    actual y se valida que no lo tenga otra cuenta. Cambiar solo el nombre no
+    pide contraseña.
     """
     repo = UserRepository(db)
     if data.email != current_user.email:
+        if not data.current_password or not verify_password(
+            data.current_password, current_user.password_hash
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para cambiar el correo debes escribir tu contraseña actual",
+            )
         existente = repo.get_by_email(data.email)
         if existente is not None and existente.id != current_user.id:
             raise HTTPException(
@@ -218,6 +234,43 @@ def cambiar_estado(
     return repo.update(user)
 
 
+def _borrar_datos_relacionados(db: Session, user_id: uuid.UUID) -> None:
+    """Borra todo lo que cuelga de un usuario antes de eliminarlo.
+
+    Hay que hacerlo a mano porque las llaves foráneas no tienen ON DELETE
+    CASCADE: si queda una fila hija (una misión, un evento de XP, un
+    seguimiento…), PostgreSQL rechaza el DELETE del usuario con un error 500.
+    El orden importa: primero los nietos (registros diarios), luego los hijos.
+    """
+    seguimiento_ids = [
+        s.id
+        for s in db.query(SeguimientoRecomendacion.id)
+        .filter(SeguimientoRecomendacion.user_id == user_id)
+        .all()
+    ]
+    if seguimiento_ids:
+        db.query(RegistroDiarioSeguimiento).filter(
+            RegistroDiarioSeguimiento.seguimiento_id.in_(seguimiento_ids)
+        ).delete(synchronize_session=False)
+
+    for modelo, columna in (
+        (SeguimientoRecomendacion, SeguimientoRecomendacion.user_id),
+        (MisionDiaria, MisionDiaria.user_id),
+        (XpEvento, XpEvento.user_id),
+        (InsigniaUsuario, InsigniaUsuario.user_id),
+        (Sesion, Sesion.usuario_id),
+        (EncuestaHplp, EncuestaHplp.usuario_id),
+    ):
+        db.query(modelo).filter(columna == user_id).delete(synchronize_session=False)
+
+    db.query(Notificacion).filter(
+        or_(
+            Notificacion.remitente_id == user_id,
+            Notificacion.destinatario_id == user_id,
+        )
+    ).delete(synchronize_session=False)
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_usuario(
     user_id: uuid.UUID,
@@ -226,11 +279,12 @@ def eliminar_usuario(
 ):
     """Elimina un usuario de forma permanente. Solo el administrador.
 
-    Antes de borrar la cuenta se limpian sus datos relacionados (encuestas y
-    notificaciones) para no dejar registros huérfanos ni romper las llaves
-    foráneas. El administrador no puede eliminarse a sí mismo, ni eliminar a
-    otro administrador: para borrar esa cuenta hay que quitarle antes el rol,
-    de modo que el borrado de un administrador sea siempre en dos pasos.
+    Antes de borrar la cuenta se limpian TODOS sus datos relacionados (encuestas,
+    notificaciones, sesiones, misiones, XP, insignias y seguimiento de
+    recomendaciones) para no romper las llaves foráneas. El administrador no
+    puede eliminarse a sí mismo, ni eliminar a otro administrador: para borrar esa
+    cuenta hay que quitarle antes el rol, de modo que el borrado de un
+    administrador sea siempre en dos pasos.
     """
     repo = UserRepository(db)
     user = repo.get_by_id(user_id)
@@ -249,15 +303,7 @@ def eliminar_usuario(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No puedes eliminar a otro administrador. Primero cámbiale el rol.",
         )
-    db.query(EncuestaHplp).filter(EncuestaHplp.usuario_id == user.id).delete(
-        synchronize_session=False
-    )
-    db.query(Notificacion).filter(
-        or_(
-            Notificacion.remitente_id == user.id,
-            Notificacion.destinatario_id == user.id,
-        )
-    ).delete(synchronize_session=False)
+    _borrar_datos_relacionados(db, user.id)
     db.delete(user)
     db.commit()
     return None
