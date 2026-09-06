@@ -82,6 +82,19 @@ def init_db() -> None:
     if resultado.rowcount:
         print(f"[OK] {resultado.rowcount} valores de role normalizados a minusculas", flush=True)
 
+    # Migración: normaliza email a minúsculas. Salta las filas que chocarían
+    # con otra cuenta ya en minúsculas: esas se resuelven a mano.
+    with engine.begin() as conn:
+        resultado = conn.execute(text(
+            "UPDATE users u SET email = lower(u.email) "
+            "WHERE u.email <> lower(u.email) "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM users o WHERE o.id <> u.id AND o.email = lower(u.email)"
+            ")"
+        ))
+    if resultado.rowcount:
+        print(f"[OK] {resultado.rowcount} correos normalizados a minusculas", flush=True)
+
     with engine.begin() as conn:
         conn.execute(text(
             "ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS enlace VARCHAR(500)"
