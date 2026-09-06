@@ -1,4 +1,9 @@
+from tests.conftest import ENCUESTA_PAYLOAD
+
 ME_URL = "/api/v1/users/me"
+USERS_URL = "/api/v1/users"
+ENCUESTA_URL = "/api/v1/encuesta"
+SEG_URL = "/api/v1/seguimiento-recomendaciones"
 
 
 def test_me_devuelve_el_perfil(client, auth_headers, registered_user):
@@ -38,3 +43,49 @@ def test_me_incluye_el_perfil_academico(client, auth_headers):
     data = client.get(ME_URL, headers=auth_headers).json()
     for campo in ("facultad", "program", "tipo_usuario", "university"):
         assert campo in data
+
+
+def test_cambiar_correo_exige_la_contrasena_actual(client, auth_headers, registered_user):
+    """Cambiar solo el nombre no pide contraseña; cambiar el correo (el
+    identificador de acceso) sí, y tiene que ser la correcta."""
+    solo_nombre = {"full_name": "Nombre Cambiado", "email": registered_user["email"]}
+    assert client.patch(ME_URL, json=solo_nombre, headers=auth_headers).status_code == 200
+
+    nuevo_correo = {"full_name": "Nombre Cambiado", "email": "cambiado@vitalis.com"}
+    assert client.patch(ME_URL, json=nuevo_correo, headers=auth_headers).status_code == 400
+    assert client.patch(
+        ME_URL, json={**nuevo_correo, "current_password": "incorrecta"}, headers=auth_headers
+    ).status_code == 400
+
+    ok = client.patch(
+        ME_URL,
+        json={**nuevo_correo, "current_password": registered_user["password"]},
+        headers=auth_headers,
+    )
+    assert ok.status_code == 200
+    assert ok.json()["email"] == "cambiado@vitalis.com"
+
+
+def test_eliminar_estudiante_con_datos_de_gamificacion_y_seguimiento(
+    client, auth_headers, admin_headers, registered_user
+):
+    """Un estudiante que ya respondió la encuesta y registró un seguimiento
+    tiene filas en encuestas_hplp, xp_eventos, seguimientos_recomendacion,
+    registros_diarios_seguimiento y sesiones. Borrarlo no debe romper por las
+    llaves foráneas: tiene que responder 204 y desaparecer."""
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    tarjetas = client.get(
+        f"{SEG_URL}/actividad-fisica/tarjetas", headers=auth_headers
+    ).json()
+    seg_id = tarjetas["tarjetas"][0]["seguimiento"]["id"]
+    assert client.post(
+        f"{SEG_URL}/{seg_id}/registrar-dia", json={}, headers=auth_headers
+    ).status_code == 200
+
+    lista = client.get(USERS_URL, headers=admin_headers).json()
+    uid = next(u["id"] for u in lista if u["email"] == registered_user["email"])
+
+    assert client.delete(f"{USERS_URL}/{uid}", headers=admin_headers).status_code == 204
+
+    restantes = client.get(USERS_URL, headers=admin_headers).json()
+    assert all(u["email"] != registered_user["email"] for u in restantes)

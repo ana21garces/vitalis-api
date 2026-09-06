@@ -73,6 +73,21 @@ def test_login_usuario_no_existe(client):
     assert res.status_code == 401
 
 
+def test_login_se_bloquea_tras_muchos_fallos(client):
+    """Freno de fuerza bruta: tras varios intentos fallidos seguidos la clave
+    queda bloqueada un rato, y ni siquiera la contraseña correcta entra hasta
+    que pase el castigo."""
+    client.post(REGISTER_URL, json=VALID_USER)
+    malas = {"email": VALID_USER["email"], "password": "incorrecta"}
+    codigos = [client.post(LOGIN_URL, json=malas).status_code for _ in range(12)]
+    assert 429 in codigos
+
+    con_la_buena = client.post(
+        LOGIN_URL, json={"email": VALID_USER["email"], "password": VALID_USER["password"]}
+    )
+    assert con_la_buena.status_code == 429
+
+
 def _tokens(client):
     """Registra al usuario de prueba e inicia sesion. Devuelve los dos tokens."""
     client.post(REGISTER_URL, json=VALID_USER)

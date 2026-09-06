@@ -16,6 +16,16 @@ from app.api.v1.endpoints import (
 
 api_router = APIRouter(prefix="/api/v1")
 
+
+@api_router.get("/health", tags=["Health"])
+def health_v1():
+    """Igual que /health, pero bajo /api/v1 para que sea alcanzable desde fuera:
+    el proxy del servidor solo publica las rutas /api/v1."""
+    from app.core.config import settings
+
+    return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
+
 api_router.include_router(auth.router)
 api_router.include_router(encuesta_hplp.router)
 api_router.include_router(estadisticas.router)

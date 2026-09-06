@@ -9,6 +9,7 @@ from app.models.user import User
 from app.repositories import sesion_repository
 from app.schemas.auditoria import AuditoriaItem, AuditoriaResponse, AuditoriaResumen
 from app.services import reportes_service as rep
+from app.services.gamificacion_service import COLOMBIA_TZ, hoy_bogota
 
 router = APIRouter(prefix="/auditoria", tags=["Auditoría"])
 
@@ -88,16 +89,27 @@ def resumen(
     db: Session = Depends(get_db),
 ):
     """Métricas del día y tiempo promedio de sesión (con el latido, fiel aunque
-    no den logout)."""
-    sesiones = sesion_repository.listar(db)
-    hoy = datetime.now(timezone.utc).date()
+    no den logout).
 
-    logins_hoy = sum(1 for s in sesiones if s.inicio.date() == hoy)
-    logouts_hoy = sum(1 for s in sesiones if s.fin is not None and s.fin.date() == hoy)
+    «Hoy» es el día en Colombia (America/Bogota), no en UTC: si no, después de
+    las 19:00 hora local los contadores se iban a 0 porque en UTC ya era mañana.
+    """
+    sesiones = sesion_repository.listar(db)
+    hoy = hoy_bogota()
+
+    def es_hoy(dt) -> bool:
+        if dt is None:
+            return False
+        if dt.tzinfo is None:  # filas antiguas o SQLite: se asume UTC
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(COLOMBIA_TZ).date() == hoy
+
+    logins_hoy = sum(1 for s in sesiones if es_hoy(s.inicio))
+    logouts_hoy = sum(1 for s in sesiones if es_hoy(s.fin))
     activos = {
         s.usuario_id
         for s in sesiones
-        if s.inicio.date() == hoy or s.ultima_actividad.date() == hoy
+        if es_hoy(s.inicio) or es_hoy(s.ultima_actividad)
     }
 
     duraciones = []
