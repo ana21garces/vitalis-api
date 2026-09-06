@@ -147,6 +147,14 @@ def _anterior_kwargs(anteriores: dict, usuario_id, prefijo: str) -> dict:
     }
 
 
+def _perfil_completo(payload: EncuestaCreate) -> bool:
+    if payload.tipo_usuario is None:
+        return False
+    if payload.tipo_usuario == "administrativo":
+        return True
+    return bool(payload.facultad and payload.program)
+
+
 @router.post("", response_model=EncuestaResponse, status_code=status.HTTP_201_CREATED)
 def guardar_encuesta(
     payload: EncuestaCreate,
@@ -180,10 +188,20 @@ def guardar_encuesta(
             detail=f"Ya respondiste la medición «{ciclo.nombre}»",
         )
 
-    # Actualizar perfil universitario del usuario con los datos de la encuesta
-    current_user.facultad = payload.facultad
-    current_user.program = payload.program
-    current_user.tipo_usuario = payload.tipo_usuario
+    # El seguimiento no vuelve a pedir el perfil universitario, así que solo se
+    # escribe lo que llega: si no, sobrescribiría con vacío lo ya guardado.
+    if primera_vez and not _perfil_completo(payload):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Faltan los datos del perfil universitario",
+        )
+
+    if payload.tipo_usuario is not None:
+        current_user.tipo_usuario = payload.tipo_usuario
+    if payload.facultad is not None:
+        current_user.facultad = payload.facultad
+    if payload.program is not None:
+        current_user.program = payload.program
     # El sexo no se pide en los seguimientos de quien ya lo tiene, así que solo
     # se sobrescribe cuando viene: si no, se conservaría el valor anterior.
     if payload.sexo is not None:

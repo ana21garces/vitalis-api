@@ -89,3 +89,47 @@ def test_eliminar_estudiante_con_datos_de_gamificacion_y_seguimiento(
 
     restantes = client.get(USERS_URL, headers=admin_headers).json()
     assert all(u["email"] != registered_user["email"] for u in restantes)
+
+
+# ── Completar datos demográficos ──────────────────────────────────────────
+
+DEMOGRAFICOS_URL = f"{ME_URL}/datos-demograficos"
+
+
+def test_completar_datos_demograficos_persiste(client, auth_headers):
+    antes = client.get(ME_URL, headers=auth_headers).json()
+    assert antes["tipo_usuario"] is None
+    assert antes["facultad"] is None
+
+    res = client.patch(
+        DEMOGRAFICOS_URL,
+        headers=auth_headers,
+        json={
+            "tipo_usuario": "estudiante",
+            "sexo": "femenino",
+            "facultad": "Ingeniería",
+            "program": "Ingeniería de Sistemas",
+        },
+    )
+    assert res.status_code == 200
+
+    despues = client.get(ME_URL, headers=auth_headers).json()
+    assert despues["tipo_usuario"] == "estudiante"
+    assert despues["sexo"] == "femenino"
+    assert despues["facultad"] == "Ingeniería"
+    assert despues["program"] == "Ingeniería de Sistemas"
+
+
+def test_completar_datos_demograficos_no_borra_lo_que_ya_estaba(client, auth_headers):
+    client.patch(
+        DEMOGRAFICOS_URL,
+        headers=auth_headers,
+        json={"tipo_usuario": "docente", "facultad": "Teología"},
+    )
+
+    client.patch(DEMOGRAFICOS_URL, headers=auth_headers, json={"sexo": "masculino"})
+
+    data = client.get(ME_URL, headers=auth_headers).json()
+    assert data["tipo_usuario"] == "docente"
+    assert data["facultad"] == "Teología"
+    assert data["sexo"] == "masculino"

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import List, Literal, Optional
 
@@ -12,13 +12,20 @@ Sexo = Literal["masculino", "femenino"]
 
 
 class EncuestaCreate(BaseModel):
-    # Datos de perfil universitario (se guardan en el usuario)
-    facultad: str
-    program: str
-    tipo_usuario: TipoUsuario
+    # Datos de perfil universitario (se guardan en el usuario). Opcionales
+    # porque el seguimiento no los vuelve a pedir: lo que no llega se conserva.
+    # La primera encuesta sí los exige, y eso se valida en el endpoint.
+    facultad: str | None = None
+    program: str | None = None
+    tipo_usuario: TipoUsuario | None = None
     # Opcional en la API para no romper a quien ya responde sin él; el
     # formulario sí lo exige. Si llega vacío, se conserva el que ya tuviera.
     sexo: Sexo | None = None
+
+    @field_validator("facultad", "program", "tipo_usuario", "sexo", mode="before")
+    @classmethod
+    def _vacio_es_nulo(cls, v):
+        return None if isinstance(v, str) and not v.strip() else v
     consentimiento_aceptado_en: datetime | None = None
 
     # Relaciones Interpersonales — 9 ítems (campo: ri_)
