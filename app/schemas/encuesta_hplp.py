@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import List, Literal, Optional
 
@@ -12,13 +12,21 @@ Sexo = Literal["masculino", "femenino"]
 
 
 class EncuestaCreate(BaseModel):
-    # Datos de perfil universitario (se guardan en el usuario)
-    facultad: str
-    program: str
-    tipo_usuario: TipoUsuario
+    # Datos de perfil universitario (se guardan en el usuario). Opcionales
+    # porque el seguimiento no los vuelve a pedir: lo que no llega se conserva.
+    # La primera encuesta sí los exige, y eso se valida en el endpoint.
+    facultad: str | None = None
+    program: str | None = None
+    tipo_usuario: TipoUsuario | None = None
     # Opcional en la API para no romper a quien ya responde sin él; el
     # formulario sí lo exige. Si llega vacío, se conserva el que ya tuviera.
     sexo: Sexo | None = None
+
+    @field_validator("facultad", "program", "tipo_usuario", "sexo", mode="before")
+    @classmethod
+    def _vacio_es_nulo(cls, v):
+        return None if isinstance(v, str) and not v.strip() else v
+    consentimiento_aceptado_en: datetime | None = None
 
     # Relaciones Interpersonales — 9 ítems (campo: ri_)
     ri_item_01: Val
@@ -119,6 +127,7 @@ class PerfilSaludItem(BaseModel):
     facultad: str | None
     programa: str | None
     tipo_usuario: str | None
+    avatar_url: str | None = None
     fecha: datetime
     resultados: ResultadosEncuesta
 
@@ -175,6 +184,8 @@ class TarjetaRecomendacion(BaseModel):
     tecnica: str
     objetivo: str
     instrucciones: List[str]
+    tipo_actividad: str = "checklist_simple"
+    config_actividad: dict | None = None
 
 
 # ── Vista Capellán: Psicología Positiva ──────────────────────────────────────
@@ -202,6 +213,10 @@ class ResultadoCapellanItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     psicologia_positiva: PsicologiaPositivaItems
 
 
@@ -283,6 +298,10 @@ class ResultadoActFisicaItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     actividad_fisica: ActividadFisicaItems
 
 
@@ -339,6 +358,10 @@ class ResultadoRespSaludItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     responsabilidad_salud: ResponsabilidadSaludItems
 
 
@@ -387,6 +410,10 @@ class ResultadoMEItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     manejo_estres: ManejoEstresItems
 
 
@@ -450,6 +477,10 @@ class ResultadoRIItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     relaciones_interpersonales: RelacionesInterpersonalesItems
 
 
@@ -505,6 +536,10 @@ class ResultadoNutricionItem(BaseModel):
     tipo_usuario: str | None
     universidad: str | None
     fecha: datetime
+    # Comparativo con la medición anterior (None si es su primera medición).
+    indice_anterior: float | None = None
+    nivel_anterior: str | None = None
+    fecha_anterior: datetime | None = None
     nutricion: NutricionItems
 
 
@@ -532,3 +567,39 @@ class RecomendacionesNResponse(BaseModel):
     n_indice: float
     total_tarjetas: int
     tarjetas: List[TarjetaRecomendacion]
+
+
+# ── Reporte individual por persona (remisión) ──────────────────────────────
+
+class ReporteMedicion(BaseModel):
+    nombre: str
+    fecha: datetime
+
+
+class ReporteDatosBasicos(BaseModel):
+    nombre: str
+    sexo: Optional[str] = None
+    facultad: Optional[str] = None
+    programa: Optional[str] = None
+    tipo_usuario: Optional[str] = None
+    universidad: Optional[str] = None
+
+
+class ReporteDimension(BaseModel):
+    clave: str
+    label: str
+    indice_actual: float
+    nivel_actual: str
+    indice_base: Optional[float] = None
+    nivel_base: Optional[str] = None
+
+
+class ReportePersonaResponse(BaseModel):
+    datos: ReporteDatosBasicos
+    medicion_actual: ReporteMedicion
+    medicion_base: Optional[ReporteMedicion] = None
+    global_actual_indice: float
+    global_actual_nivel: str
+    global_base_indice: Optional[float] = None
+    global_base_nivel: Optional[str] = None
+    dimensiones: List[ReporteDimension]

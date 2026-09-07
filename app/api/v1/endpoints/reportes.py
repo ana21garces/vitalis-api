@@ -1,3 +1,4 @@
+from datetime import date
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -18,6 +19,8 @@ def generar_reporte(
     segmento: str = Query("todas"),
     dimension: str = Query("global", description="global | todas | <clave de dimensión>"),
     nivel: str | None = Query(None, description="Pobre | Moderado | Bueno | Excelente"),
+    desde: date | None = Query(None, description="Cumplimiento: fecha inicial (YYYY-MM-DD)"),
+    hasta: date | None = Query(None, description="Cumplimiento: fecha final (YYYY-MM-DD)"),
     _admin: User = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
@@ -39,6 +42,7 @@ def generar_reporte(
 
     tabla = svc.generar(
         db, tipo, rol=rol, segmento=segmento, dimension=dimension, nivel=nivel,
+        desde=desde, hasta=hasta,
     )
     contenido, media_type, ext = svc.render(tabla, formato)
 

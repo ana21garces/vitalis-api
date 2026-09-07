@@ -12,6 +12,7 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserResponse
 from app.repositories.user_repository import UserRepository
+from app.repositories import sesion_repository
 from app.core.security import (
     hash_password,
     verify_password,
@@ -19,16 +20,23 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
 )
+from app.core.rate_limit import login_throttle
 
 REFRESH_INVALIDO = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Token de refresco inválido o expirado",
 )
 
+CREDENCIALES_INCORRECTAS = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Credenciales incorrectas",
+)
+
 
 class AuthService:
 
     def __init__(self, db: Session):
+        self.db = db
         self.repo = UserRepository(db)
 
     def register(self, data: RegisterRequest) -> UserResponse:
@@ -50,21 +58,22 @@ class AuthService:
         created_user = self.repo.create(new_user)
         return UserResponse.model_validate(created_user)
 
-    def login(self, data: LoginRequest) -> TokenResponse:
-        # Verificar que el usuario existe
-        user = self.repo.get_by_email(data.email)
-        if not user:
+    def login(self, data: LoginRequest, ip: str | None = None) -> TokenResponse:
+        # Freno de fuerza bruta: se cuenta por correo+IP. Tras varios fallos
+        # seguidos la clave queda bloqueada un rato (ver core/rate_limit.py).
+        clave_throttle = f"{data.email.lower()}|{ip or '-'}"
+        espera = login_throttle.segundos_de_espera(clave_throttle)
+        if espera:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Credenciales incorrectas"
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demasiados intentos fallidos. Inténtalo de nuevo más tarde.",
+                headers={"Retry-After": str(espera)},
             )
 
-        # Verificar contraseña
-        if not verify_password(data.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Credenciales incorrectas"
-            )
+        user = self.repo.get_by_email(data.email)
+        if not user or not verify_password(data.password, user.password_hash):
+            login_throttle.registrar_fallo(clave_throttle)
+            raise CREDENCIALES_INCORRECTAS
 
         # Verificar que la cuenta esté activa
         if not user.is_active:
@@ -73,9 +82,14 @@ class AuthService:
                 detail="Cuenta inactiva, contacta al administrador"
             )
 
+        login_throttle.limpiar(clave_throttle)
+
         # Actualizar último login
         user.last_login_at = datetime.now(timezone.utc)
         self.repo.update(user)
+
+        # Abrir una sesión para la auditoría de accesos.
+        sesion_repository.crear(self.db, user.id, ip)
 
         # Generar tokens
         token_data = {"sub": str(user.id), "email": user.email, "role": user.role}

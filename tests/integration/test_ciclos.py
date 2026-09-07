@@ -267,3 +267,61 @@ def test_comparar_se_ordena_sola(client, auth_headers, admin_headers):
     ).json()
     assert data["base"]["id"] == base_id
     assert data["seguimiento"]["id"] == seguimiento_id
+
+
+# ── El seguimiento no puede borrar el perfil universitario ────────────────
+
+SIN_PERFIL = {"facultad": "", "program": "", "tipo_usuario": ""}
+
+
+def test_el_seguimiento_conserva_el_perfil_universitario(client, auth_headers, admin_headers):
+    """El formulario oculta los demográficos en un seguimiento y los manda
+    vacíos: eso borraba la facultad de quien ya la tenía."""
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    _programar(client, admin_headers)
+
+    res = client.post(ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, **SIN_PERFIL}, headers=auth_headers)
+    assert res.status_code == 201
+
+    perfil = client.get("/api/v1/users/me", headers=auth_headers).json()
+    assert perfil["facultad"] == ENCUESTA_PAYLOAD["facultad"]
+    assert perfil["program"] == ENCUESTA_PAYLOAD["program"]
+    assert perfil["tipo_usuario"] == ENCUESTA_PAYLOAD["tipo_usuario"]
+
+
+def test_se_puede_responder_un_seguimiento_sin_perfil_guardado(client, auth_headers, admin_headers):
+    """Quien respondió antes de que se guardara el perfil universitario tiene
+    esos campos vacíos: aun así debe poder responder la segunda medición."""
+    from app.models.user import User
+    from tests.conftest import TestingSessionLocal
+
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    db = TestingSessionLocal()
+    usuario = db.query(User).filter(User.tipo_usuario.isnot(None)).first()
+    usuario.facultad = None
+    usuario.program = None
+    usuario.tipo_usuario = None
+    db.commit()
+    db.close()
+
+    _programar(client, admin_headers)
+
+    res = client.post(ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, **SIN_PERFIL}, headers=auth_headers)
+    assert res.status_code == 201
+
+
+def test_la_primera_encuesta_sigue_exigiendo_el_perfil(client, auth_headers):
+    res = client.post(ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, **SIN_PERFIL}, headers=auth_headers)
+    assert res.status_code == 422
+
+
+def test_un_administrativo_no_necesita_facultad(client, auth_headers):
+    res = client.post(
+        ENCUESTA_URL,
+        json={**ENCUESTA_PAYLOAD, "facultad": "", "program": "", "tipo_usuario": "administrativo"},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201
+
+    perfil = client.get("/api/v1/users/me", headers=auth_headers).json()
+    assert perfil["tipo_usuario"] == "administrativo"

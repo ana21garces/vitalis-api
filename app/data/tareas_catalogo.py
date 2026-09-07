@@ -19,7 +19,7 @@ TAREAS_CATALOGO: list[TareaDef] = [
     TareaDef("PP-01", "psicologia_positiva", "Gratitud del día", "Escribe 3 cosas por las que estás agradecido hoy.", 25, 5, "facil"),
     TareaDef("PP-02", "psicologia_positiva", "Lectura inspiradora", "Lee algo inspirador y anota una idea aplicable a tu día.", 25, 10, "facil"),
     TareaDef("PP-03", "psicologia_positiva", "Gratitud express", "Nombra en voz alta algo positivo que ocurrió hoy.", 20, 3, "facil"),
-    TareaDef("PP-04", "psicologia_positiva", "Meta significativa", "Escribe una meta significativa para esta semana.", 30, 10, "media"),
+    TareaDef("PP-04", "psicologia_positiva", "Meta significativa", "Escribe una meta significativa y da hoy el primer paso hacia ella.", 30, 10, "media"),
     TareaDef("PP-05", "psicologia_positiva", "Tiempo de disfrute", "Dedica 10 minutos a una actividad que disfrutes sin pantallas.", 25, 10, "facil"),
     # Actividad física
     TareaDef("AF-01", "actividad_fisica", "Caminata activa", "Realiza una caminata de 20–30 minutos al aire libre.", 30, 25, "media"),

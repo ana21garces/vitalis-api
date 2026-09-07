@@ -1,9 +1,11 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
+
+from app.schemas.comunes import CorreoNormalizado
 
 
 class RegisterRequest(BaseModel):
     full_name: str
-    email: EmailStr
+    email: CorreoNormalizado
     password: str
     confirm_password: str
 
@@ -30,7 +32,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: CorreoNormalizado
     password: str
 
 
@@ -45,7 +47,7 @@ class TokenResponse(BaseModel):
 
 
 class VerificarCorreoRequest(BaseModel):
-    email: EmailStr
+    email: CorreoNormalizado
 
 
 class VerificarCorreoResponse(BaseModel):
@@ -53,7 +55,7 @@ class VerificarCorreoResponse(BaseModel):
 
 
 class RestablecerClaveRequest(BaseModel):
-    email: EmailStr
+    email: CorreoNormalizado
     new_password: str
     confirm_password: str
 

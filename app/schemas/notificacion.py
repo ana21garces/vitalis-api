@@ -6,6 +6,9 @@ from pydantic import BaseModel, field_validator
 class NotificacionCreate(BaseModel):
     destinatario_id: str
     mensaje: str
+    # Dimensión desde la que se envía (para mostrar "Profesional de ..."). Solo
+    # se usa cuando quien envía es el administrador actuando como ese rol.
+    rol: str | None = None
 
     @field_validator("mensaje")
     @classmethod
@@ -20,8 +23,17 @@ class NotificacionResponse(BaseModel):
     id: int
     remitente_nombre: str
     mensaje: str
+    enlace: str | None = None
+    tipo: str | None = None
+    # Invitación a cita: si el estudiante aún puede responder, y su respuesta.
+    puede_responder: bool = False
+    respuesta: str | None = None
     leida: bool
     created_at: datetime
+
+
+class ResponderInvitacion(BaseModel):
+    acepta: bool
 
 
 class DifusionRequest(BaseModel):

@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_db
+from app.core.dependencies import get_db, get_current_user
+from app.core.rate_limit import recuperacion_throttle
+from app.models.user import User
+from app.repositories import sesion_repository
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
@@ -17,6 +20,28 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
+def _ip_cliente(request: Request) -> str | None:
+    """IP real del cliente. Detrás de un proxy la trae `X-Forwarded-For`."""
+    reenviada = request.headers.get("x-forwarded-for")
+    if reenviada:
+        return reenviada.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+def _frenar_recuperacion(request: Request) -> None:
+    """Limita los dos pasos de la recuperación de contraseña por IP: sin esto,
+    se pueden enumerar correos o probar restablecimientos en masa."""
+    clave = _ip_cliente(request) or "-"
+    espera = recuperacion_throttle.segundos_de_espera(clave)
+    if espera:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiadas solicitudes. Inténtalo de nuevo más tarde.",
+            headers={"Retry-After": str(espera)},
+        )
+    recuperacion_throttle.registrar_fallo(clave)
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     service = AuthService(db)
@@ -24,9 +49,30 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
+def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     service = AuthService(db)
-    return service.login(data)
+    return service.login(data, ip=_ip_cliente(request))
+
+
+@router.post("/heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+def heartbeat(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Latido: la app lo llama cada tanto para marcar que el usuario sigue
+    activo. Refresca la última actividad de su sesión abierta."""
+    sesion_repository.tocar(db, current_user.id)
+    return None
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cierra la sesión abierta del usuario, para la auditoría de accesos."""
+    sesion_repository.cerrar(db, current_user.id)
+    return None
 
 
 @router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)
@@ -42,14 +88,16 @@ def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/verificar-correo", response_model=VerificarCorreoResponse, status_code=status.HTTP_200_OK)
-def verificar_correo(data: VerificarCorreoRequest, db: Session = Depends(get_db)):
+def verificar_correo(data: VerificarCorreoRequest, request: Request, db: Session = Depends(get_db)):
     """Indica si existe una cuenta con el correo dado (paso 1 de la recuperación)."""
+    _frenar_recuperacion(request)
     existe = AuthService(db).verificar_correo(data.email)
     return VerificarCorreoResponse(existe=existe)
 
 
 @router.post("/restablecer-clave", response_model=RestablecerClaveResponse, status_code=status.HTTP_200_OK)
-def restablecer_clave(data: RestablecerClaveRequest, db: Session = Depends(get_db)):
+def restablecer_clave(data: RestablecerClaveRequest, request: Request, db: Session = Depends(get_db)):
     """Restablece la contraseña de una cuenta existente (paso 2 de la recuperación)."""
+    _frenar_recuperacion(request)
     AuthService(db).restablecer_clave(data)
     return RestablecerClaveResponse(message="Contraseña actualizada correctamente")

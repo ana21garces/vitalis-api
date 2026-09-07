@@ -155,6 +155,30 @@ _REC = {
     },
 }
 
+# Clasificación de plantilla de evidencia por pregunta (misma para POBRE y
+# MODERADO, ya que la técnica no cambia entre niveles en esta dimensión).
+_TIPO_POR_PREGUNTA = {
+    5: "registro_numerico",
+    11: "registro_numerico",
+    18: "matriz",
+    24: "diario",
+    30: "lista",
+    36: "lista",
+    43: "registro_numerico",
+    48: "lista",
+}
+
+_CONFIG_POR_PREGUNTA = {
+    5: {"unidad": "horas dormidas"},
+    11: {"unidad": "minutos"},
+    18: {"cuadrantes": ["Lo controlo", "Lo influyo", "No lo controlo"]},
+    24: {"prompt": "Describe la escena agradable que recorriste hoy y cómo te sentiste."},
+    30: {"placeholder": "Técnica que usaste hoy (respiración, caminata, música...)"},
+    36: {"placeholder": "Bloque de ocio o descanso que cumpliste hoy"},
+    43: {"unidad": "minutos"},
+    48: {"placeholder": "Tarea prioritaria de hoy"},
+}
+
 
 def _tarjeta(num_q: int, nivel: str) -> dict:
     base = _REC[num_q]
@@ -165,6 +189,8 @@ def _tarjeta(num_q: int, nivel: str) -> dict:
             *base["instrucciones_base"],
             f"Para tu nivel ({nivel.capitalize()}): {base[nivel]}",
         ],
+        "tipo_actividad": _TIPO_POR_PREGUNTA[num_q],
+        "config_actividad": _CONFIG_POR_PREGUNTA.get(num_q),
     }
 
 
@@ -197,6 +223,8 @@ def obtener_recomendaciones_me(encuesta: EncuestaHplp) -> list[dict]:
             "tecnica": rec["tecnica"],
             "objetivo": rec["objetivo"],
             "instrucciones": rec["instrucciones"],
+            "tipo_actividad": rec.get("tipo_actividad", "checklist_simple"),
+            "config_actividad": rec.get("config_actividad"),
         })
     tarjetas.sort(key=lambda t: PRIORIDAD_NIVEL[t["nivel"]])
     return tarjetas

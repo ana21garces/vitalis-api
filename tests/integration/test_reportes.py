@@ -5,10 +5,74 @@ Del CSV se verifica el contenido (encabezado y filas), que es lo que se lleva a
 un programa de estadística; de Excel y PDF solo que el archivo salga con su tipo
 correcto, porque su contenido es binario.
 """
+from datetime import date, timedelta
+
 from tests.conftest import ENCUESTA_PAYLOAD
 
 REPORTES_URL = "/api/v1/reportes"
 ENCUESTA_URL = "/api/v1/encuesta"
+SEG_URL = "/api/v1/seguimiento-recomendaciones"
+GAMI_URL = "/api/v1/gamificacion"
+
+
+def _registrar_una_actividad(client, auth_headers):
+    """Deja al estudiante con una actividad de AF registrada hoy."""
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    tarjetas = client.get(f"{SEG_URL}/actividad-fisica/tarjetas", headers=auth_headers).json()
+    seguimiento_id = tarjetas["tarjetas"][0]["seguimiento"]["id"]
+    client.post(f"{SEG_URL}/{seguimiento_id}/registrar-dia", json={}, headers=auth_headers)
+
+
+def test_cumplimiento_registra_lo_hecho(client, auth_headers, admin_headers):
+    _registrar_una_actividad(client, auth_headers)
+
+    res = client.get(
+        f"{REPORTES_URL}/cumplimiento",
+        params={"formato": "csv", "dimension": "actividad_fisica"},
+        headers=admin_headers,
+    )
+    assert res.status_code == 200
+    texto = res.content.decode("utf-8-sig")
+    encabezado = texto.splitlines()[0].split(";")
+    assert encabezado[0] == "Nombre"
+    assert "¿La hizo?" in encabezado
+    assert "Fechas" in encabezado
+
+    hoy = date.today().strftime("%Y-%m-%d")
+    assert hoy in texto
+    filas = [f for f in texto.splitlines()[1:] if f]
+    assert any(f.split(";")[8] == "Sí" for f in filas)
+
+
+def test_cumplimiento_periodo_excluye_lo_de_fuera(client, auth_headers, admin_headers):
+    _registrar_una_actividad(client, auth_headers)
+
+    manana = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    res = client.get(
+        f"{REPORTES_URL}/cumplimiento",
+        params={"formato": "csv", "dimension": "actividad_fisica", "desde": manana},
+        headers=admin_headers,
+    )
+    assert res.status_code == 200
+    texto = res.content.decode("utf-8-sig")
+    assert date.today().strftime("%Y-%m-%d") not in texto
+
+
+def test_misiones_registra_lo_completado(client, auth_headers, admin_headers):
+    client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    hoy = client.get(f"{GAMI_URL}/misiones/hoy", headers=auth_headers).json()
+    assert hoy["misiones"]
+    mision_id = hoy["misiones"][0]["id"]
+    client.post(f"{GAMI_URL}/misiones/{mision_id}/completar", headers=auth_headers)
+
+    res = client.get(f"{REPORTES_URL}/misiones", params={"formato": "csv"}, headers=admin_headers)
+    assert res.status_code == 200
+    texto = res.content.decode("utf-8-sig")
+    encabezado = texto.splitlines()[0].split(";")
+    assert encabezado[0] == "Nombre"
+    assert "Misión" in encabezado
+    assert "Veces" in encabezado
+    assert date.today().strftime("%Y-%m-%d") in texto
 
 
 def test_requiere_admin(client, auth_headers):

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -38,13 +38,15 @@ class GamificacionRepository:
         self.db.refresh(mision)
         return mision
 
-    def tareas_recientes(self, user_id: uuid.UUID, dias: int = 2) -> set[str]:
-        from datetime import timedelta
-
-        desde = date.today() - timedelta(days=dias)
+    def tareas_recientes(self, user_id: uuid.UUID, fecha: date, dias: int = 2) -> set[str]:
+        desde = fecha - timedelta(days=dias)
         filas = (
             self.db.query(MisionDiaria.tarea_id)
-            .filter(MisionDiaria.user_id == user_id, MisionDiaria.fecha >= desde)
+            .filter(
+                MisionDiaria.user_id == user_id,
+                MisionDiaria.fecha >= desde,
+                MisionDiaria.fecha < fecha,
+            )
             .all()
         )
         return {fila[0] for fila in filas}

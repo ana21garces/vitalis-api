@@ -10,8 +10,18 @@ from app.models import user as _user_model          # noqa: F401 — registra ta
 from app.models import encuesta_hplp as _enc_model  # noqa: F401 — registra tabla encuestas_hplp
 from app.models import notificacion as _notif_model # noqa: F401 — registra tabla notificaciones
 from app.models import ciclo_medicion as _ciclo_model # noqa: F401 — registra tabla ciclos_medicion
+from app.models import seguimiento_recomendacion as _seg_model  # noqa: F401 — registra tablas de seguimiento
+from app.models import gamificacion as _gam_model  # noqa: F401 — registra misiones_diarias y xp_eventos
+from app.models import sesion as _sesion_model  # noqa: F401 — registra tabla sesiones (auditoría)
+from app.models import asistente as _asist_model  # noqa: F401 — registra tabla asistente_saludos
+from app.models import insignia as _insignia_model  # noqa: F401 — registra tabla insignias_usuario
 
-_SQLITE_TABLES = ["users", "encuestas_hplp", "notificaciones", "ciclos_medicion"]
+_SQLITE_TABLES = [
+    "users", "encuestas_hplp", "notificaciones", "ciclos_medicion",
+    "seguimientos_recomendacion", "registros_diarios_seguimiento",
+    "misiones_diarias", "xp_eventos", "sesiones", "asistente_saludos",
+    "insignias_usuario",
+]
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
 
@@ -36,9 +46,27 @@ def setup_db():
 
 
 @pytest.fixture(autouse=True)
+def _reiniciar_throttles():
+    """Los limitadores de intentos viven en memoria del proceso: hay que
+    vaciarlos entre tests para que un test no herede los fallos de otro."""
+    from app.core import rate_limit
+    for t in (rate_limit.login_throttle, rate_limit.recuperacion_throttle):
+        t._fallos.clear()
+        t._bloqueo_hasta.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def limpiar_tablas():
     """Limpia las tablas antes de cada test para garantizar aislamiento."""
     db = TestingSessionLocal()
+    db.execute(text("DELETE FROM registros_diarios_seguimiento"))
+    db.execute(text("DELETE FROM seguimientos_recomendacion"))
+    db.execute(text("DELETE FROM insignias_usuario"))
+    db.execute(text("DELETE FROM xp_eventos"))
+    db.execute(text("DELETE FROM misiones_diarias"))
+    db.execute(text("DELETE FROM sesiones"))
+    db.execute(text("DELETE FROM asistente_saludos"))
     db.execute(text("DELETE FROM notificaciones"))
     db.execute(text("DELETE FROM encuestas_hplp"))
     db.execute(text("DELETE FROM ciclos_medicion"))

@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from uuid import UUID
 from datetime import date, datetime
 from app.models.user import UserRole
+from app.schemas.comunes import CorreoNormalizado
 
 
 class UserResponse(BaseModel):
@@ -36,7 +37,11 @@ class CambiarEstadoRequest(BaseModel):
 
 class ActualizarPerfilRequest(BaseModel):
     full_name: str
-    email: EmailStr
+    email: CorreoNormalizado
+    # Solo se exige cuando el correo cambia: el correo es el identificador de
+    # acceso, así que cambiarlo tiene que pedir la contraseña actual (si no, un
+    # token robado bastaría para quedarse con la cuenta).
+    current_password: str | None = None
 
     @field_validator("full_name")
     @classmethod
@@ -44,6 +49,46 @@ class ActualizarPerfilRequest(BaseModel):
         if len(v.strip()) < 2:
             raise ValueError("El nombre debe tener al menos 2 caracteres")
         return v.strip()
+
+
+class CompletarDatosDemograficosRequest(BaseModel):
+    """Datos demográficos que a algunas cuentas les quedaron sin guardar.
+    Todos opcionales: la pantalla que bloquea el dashboard manda solo los que
+    falten, y el endpoint solo escribe lo que llega (no borra lo que ya está).
+    """
+
+    facultad: str | None = None
+    program: str | None = None
+    tipo_usuario: str | None = None
+    sexo: str | None = None
+
+    @field_validator("facultad", "program")
+    @classmethod
+    def _texto_o_none(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
+
+    @field_validator("tipo_usuario")
+    @classmethod
+    def _tipo_valido(cls, v):
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if v not in {"estudiante", "docente", "administrativo"}:
+            raise ValueError("tipo_usuario inválido")
+        return v
+
+    @field_validator("sexo")
+    @classmethod
+    def _sexo_valido(cls, v):
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if v not in {"masculino", "femenino"}:
+            raise ValueError("sexo inválido")
+        return v
 
 
 class CambiarPasswordRequest(BaseModel):
@@ -64,7 +109,7 @@ class MensajeResponse(BaseModel):
 
 class CrearUsuarioRequest(BaseModel):
     full_name: str
-    email: EmailStr
+    email: CorreoNormalizado
     password: str
     role: UserRole = UserRole.STUDENT
 

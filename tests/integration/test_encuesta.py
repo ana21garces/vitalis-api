@@ -92,6 +92,36 @@ def test_guardar_encuesta_guarda_el_sexo(client, auth_headers):
     assert perfil["sexo"] == "femenino"
 
 
+def test_guarda_cuando_acepto_el_consentimiento(client, auth_headers):
+    """La aceptación del consentimiento queda registrada en cada encuesta: es la
+    evidencia de que esa persona consintió en esa aplicación."""
+    from tests.conftest import TestingSessionLocal
+    from app.models.encuesta_hplp import EncuestaHplp
+
+    aceptado = "2026-08-23T15:04:05+00:00"
+    res = client.post(
+        ENCUESTA_URL,
+        json={**ENCUESTA_PAYLOAD, "consentimiento_aceptado_en": aceptado},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201
+
+    db = TestingSessionLocal()
+    try:
+        encuesta = db.query(EncuestaHplp).filter(
+            EncuestaHplp.id == res.json()["encuesta_id"]
+        ).first()
+        assert encuesta.consentimiento_aceptado_en is not None
+    finally:
+        db.close()
+
+
+def test_encuesta_sin_consentimiento_sigue_pasando(client, auth_headers):
+    """El campo es opcional en la API: las encuestas ya guardadas no lo tienen."""
+    res = client.post(ENCUESTA_URL, json=ENCUESTA_PAYLOAD, headers=auth_headers)
+    assert res.status_code == 201
+
+
 def test_sexo_invalido_se_rechaza(client, auth_headers):
     res = client.post(
         ENCUESTA_URL, json={**ENCUESTA_PAYLOAD, "sexo": "cualquiera"}, headers=auth_headers

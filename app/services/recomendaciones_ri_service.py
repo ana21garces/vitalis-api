@@ -69,6 +69,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Identifica cómo te sentiste al hablar con alguien y por qué es importante hablar con las personas a nuestro alrededor.",
                 "Recursos necesarios: cuaderno o agenda; dedica 15 minutos diarios.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "Escribe sobre una vulnerabilidad tuya y cómo te sentiste al compartirla."},
         },
         "MODERADO": {
             "tecnica": "Diario de Conversaciones",
@@ -79,6 +81,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Elige un momento tranquilo para compartirlo con una persona cercana.",
                 "Recursos necesarios: cuaderno o agenda.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "¿Qué te preocupa o sientes hoy? Escríbelo como lo dirías en voz alta."},
         },
     },
     7: {
@@ -102,6 +106,14 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Después del análisis anterior, identifica si en tu círculo más cercano tienes personas o relaciones sanas que te ayuden.",
                 "Recursos necesarios: hoja con la forma de un semáforo, en blanco y negro, para colorear y escribir dentro (Anexo D.1).",
             ],
+            "tipo_actividad": "matriz",
+            "config_actividad": {
+                "cuadrantes": [
+                    "Verde (tranquilidad y respeto)",
+                    "Amarillo (inestable o agotadora)",
+                    "Rojo (daño emocional)",
+                ],
+            },
         },
         "MODERADO": {
             "tecnica": "Agenda de Relaciones Positivas",
@@ -112,6 +124,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Planifica una acción sencilla para mantener o mejorar esas relaciones. Ejemplo: enviar un mensaje, proponer un encuentro.",
                 "Recursos necesarios: hojas (en blanco o de colores).",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Relación significativa y acción para mantenerla"},
         },
     },
     20: {
@@ -161,6 +175,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Expresa estas necesidades a personas que puedan apoyarte: dentro de tu círculo más cercano, aquellas con las que sientas seguridad al expresar tus luchas y necesidades. Ejemplo: «Hoy necesito hablar con alguien».",
                 "Importante: procura que, al solicitar apoyo, puedas sentir seguridad para explorar tu vulnerabilidad, y evalúa si puedes generar dependencia emocional.",
             ],
+            "tipo_actividad": "diario",
+            "config_actividad": {"prompt": "¿Qué apoyo emocional necesitas hoy? ¿A quién se lo pediste?"},
         },
         "MODERADO": {
             "tecnica": "Mapa de Necesidades y Recursos",
@@ -170,6 +186,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
                 "Al lado de cada necesidad anota personas o actividades que puedan ayudarte a cubrirla de manera respetuosa y saludable.",
                 "Empieza por esa actividad que te trae felicidad, tranquilidad o satisfacción: que sea tu «punto de luz».",
             ],
+            "tipo_actividad": "lista",
+            "config_actividad": {"placeholder": "Necesidad afectiva y quién o qué puede ayudarte a cubrirla"},
         },
     },
     45: {
@@ -180,6 +198,8 @@ RECOMENDACIONES: dict[int, dict[str, dict]] = {
             "Piensa en cómo y cuándo pedirles ayuda, y practica pequeños pedidos para crear confianza en buscar apoyo.",
             "Recursos necesarios: impresión de la imagen (Anexo D.2), colores, esfero negro.",
         ],
+        "tipo_actividad": "lista",
+        "config_actividad": {"placeholder": "Persona de tu red de apoyo y cómo le pedirías ayuda"},
     },
     # Pregunta 50: el documento fuente no trae el objetivo de la técnica.
     # Sin ficha hasta que la autora lo entregue — ver docstring del módulo.
@@ -219,6 +239,8 @@ def obtener_recomendaciones_ri(encuesta: EncuestaHplp) -> list[dict]:
             "tecnica": rec["tecnica"],
             "objetivo": rec["objetivo"],
             "instrucciones": rec["instrucciones"],
+            "tipo_actividad": rec.get("tipo_actividad", "checklist_simple"),
+            "config_actividad": rec.get("config_actividad"),
         })
     tarjetas.sort(key=lambda t: PRIORIDAD_NIVEL[t["nivel"]])
     return tarjetas

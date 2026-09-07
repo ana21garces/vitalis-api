@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -54,6 +56,10 @@ from app.schemas.encuesta_hplp import (
     FacultadGroupN,
     ResultadosNutricionResponse,
     RecomendacionesNResponse,
+    ReportePersonaResponse,
+    ReporteDatosBasicos,
+    ReporteDimension,
+    ReporteMedicion,
 )
 from app.services.recomendaciones_pp_service import obtener_recomendaciones_pp
 from app.services.recomendaciones_af_service import obtener_recomendaciones_af
@@ -124,6 +130,31 @@ def _build_resultados_from_puntajes(puntajes: dict) -> ResultadosEncuesta:
     )
 
 
+def _anterior_kwargs(anteriores: dict, usuario_id, prefijo: str) -> dict:
+    """Campos del comparativo con la medición anterior para un ítem por rol.
+
+    Devuelve el índice, nivel y fecha de esa dimensión en la encuesta previa del
+    usuario, o un dict vacío si es su primera medición (los campos quedan en None
+    por defecto). `prefijo` es el de la dimensión en la BD (pp, af, rs, ri, me, n).
+    """
+    ant = anteriores.get(usuario_id)
+    if ant is None:
+        return {}
+    return {
+        "indice_anterior": getattr(ant, f"{prefijo}_indice"),
+        "nivel_anterior": getattr(ant, f"{prefijo}_nivel"),
+        "fecha_anterior": ant.fecha_respuesta,
+    }
+
+
+def _perfil_completo(payload: EncuestaCreate) -> bool:
+    if payload.tipo_usuario is None:
+        return False
+    if payload.tipo_usuario == "administrativo":
+        return True
+    return bool(payload.facultad and payload.program)
+
+
 @router.post("", response_model=EncuestaResponse, status_code=status.HTTP_201_CREATED)
 def guardar_encuesta(
     payload: EncuestaCreate,
@@ -157,10 +188,20 @@ def guardar_encuesta(
             detail=f"Ya respondiste la medición «{ciclo.nombre}»",
         )
 
-    # Actualizar perfil universitario del usuario con los datos de la encuesta
-    current_user.facultad = payload.facultad
-    current_user.program = payload.program
-    current_user.tipo_usuario = payload.tipo_usuario
+    # El seguimiento no vuelve a pedir el perfil universitario, así que solo se
+    # escribe lo que llega: si no, sobrescribiría con vacío lo ya guardado.
+    if primera_vez and not _perfil_completo(payload):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Faltan los datos del perfil universitario",
+        )
+
+    if payload.tipo_usuario is not None:
+        current_user.tipo_usuario = payload.tipo_usuario
+    if payload.facultad is not None:
+        current_user.facultad = payload.facultad
+    if payload.program is not None:
+        current_user.program = payload.program
     # El sexo no se pide en los seguimientos de quien ya lo tiene, así que solo
     # se sobrescribe cuando viene: si no, se conservaría el valor anterior.
     if payload.sexo is not None:
@@ -172,6 +213,19 @@ def guardar_encuesta(
 
     from app.services.gamificacion_service import GamificacionService
     GamificacionService(db).otorgar_bonus_encuesta(current_user, encuesta.id)
+
+    # Avisar a los profesionales si el estudiante quedó en nivel crítico. Nunca
+    # debe tumbar el guardado de la encuesta, por eso va aislado.
+    try:
+        from app.services.alerta_estudiante_service import notificar_alertas, notificar_retrocesos
+        notificar_alertas(db, current_user, encuesta)
+        if not primera_vez:
+            linea_base = repo.obtener_primera(db, current_user.id)
+            if linea_base and linea_base.id != encuesta.id:
+                notificar_retrocesos(db, current_user, encuesta, linea_base)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudieron crear las alertas de la encuesta")
 
     return EncuestaResponse(
         encuesta_id=encuesta.id,
@@ -262,6 +316,7 @@ def resultados_psicologia_positiva(
         )
 
     filas = repo.obtener_resultados_pp_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     # Agrupación: facultad → carrera → usuarios
     por_facultad: dict[str | None, dict[str | None, list[ResultadoCapellanItem]]] = {}
@@ -275,6 +330,7 @@ def resultados_psicologia_positiva(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "pp"),
             psicologia_positiva=PsicologiaPositivaItems(
                 pp_item_06=encuesta.pp_item_06,
                 pp_item_12=encuesta.pp_item_12,
@@ -379,6 +435,7 @@ def resultados_actividad_fisica(
         )
 
     filas = repo.obtener_resultados_af_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoActFisicaItem]]] = {}
     for encuesta, usuario in filas:
@@ -391,6 +448,7 @@ def resultados_actividad_fisica(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "af"),
             actividad_fisica=ActividadFisicaItems(
                 af_item_04=encuesta.af_item_04,
                 af_item_10=encuesta.af_item_10,
@@ -495,6 +553,7 @@ def resultados_responsabilidad_salud(
         )
 
     filas = repo.obtener_resultados_rs_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoRespSaludItem]]] = {}
     for encuesta, usuario in filas:
@@ -507,6 +566,7 @@ def resultados_responsabilidad_salud(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "rs"),
             responsabilidad_salud=ResponsabilidadSaludItems(
                 rs_item_03=encuesta.rs_item_03,
                 rs_item_09=encuesta.rs_item_09,
@@ -609,6 +669,7 @@ def resultados_relaciones_interpersonales(
         )
 
     filas = repo.obtener_resultados_ri_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoRIItem]]] = {}
     for encuesta, usuario in filas:
@@ -621,6 +682,7 @@ def resultados_relaciones_interpersonales(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "ri"),
             relaciones_interpersonales=RelacionesInterpersonalesItems(
                 ri_item_01=encuesta.ri_item_01,
                 ri_item_07=encuesta.ri_item_07,
@@ -728,6 +790,7 @@ def resultados_manejo_estres(
         )
 
     filas = repo.obtener_resultados_me_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoMEItem]]] = {}
     for encuesta, usuario in filas:
@@ -740,6 +803,7 @@ def resultados_manejo_estres(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "me"),
             manejo_estres=ManejoEstresItems(
                 me_item_05=encuesta.me_item_05,
                 me_item_11=encuesta.me_item_11,
@@ -845,6 +909,7 @@ def resultados_nutricion(
         )
 
     filas = repo.obtener_resultados_n_todos(db, facultad=facultad, carrera=carrera, tipo_usuario=tipo_usuario)
+    anteriores = repo.obtener_anteriores_por_usuario(db)
 
     por_facultad: dict[str | None, dict[str | None, list[ResultadoNutricionItem]]] = {}
     for encuesta, usuario in filas:
@@ -857,6 +922,7 @@ def resultados_nutricion(
             tipo_usuario=usuario.tipo_usuario,
             universidad=usuario.university,
             fecha=encuesta.fecha_respuesta,
+            **_anterior_kwargs(anteriores, usuario.id, "n"),
             nutricion=NutricionItems(
                 n_item_02=encuesta.n_item_02,
                 n_item_08=encuesta.n_item_08,
@@ -983,6 +1049,7 @@ def perfiles_salud(
             facultad=usuario.facultad,
             programa=usuario.program,
             tipo_usuario=usuario.tipo_usuario,
+            avatar_url=usuario.avatar_url,
             fecha=encuesta.fecha_respuesta,
             resultados=_build_resultados(encuesta),
         )
@@ -1049,4 +1116,98 @@ def historial_encuestas(
             )
             for e in encuestas
         ],
+    )
+
+
+# ── Reporte individual por persona (para remisión) ─────────────────────────
+
+_ROLES_REPORTE = {
+    UserRole.ADMIN,
+    UserRole.CAPELLAN,
+    UserRole.ACTIVIDAD_FISICA,
+    UserRole.RESPONSABILIDAD_SALUD,
+    UserRole.RELACIONES_INTERPERSONALES,
+    UserRole.MANEJO_ESTRES,
+    UserRole.NUTRICION,
+}
+
+_DIM_REPORTE = [
+    ("relaciones_interpersonales", "ri", "Relaciones interpersonales"),
+    ("nutricion", "n", "Nutrición"),
+    ("responsabilidad_salud", "rs", "Responsabilidad en salud"),
+    ("actividad_fisica", "af", "Actividad física"),
+    ("manejo_estres", "me", "Manejo del estrés"),
+    ("psicologia_positiva", "pp", "Psicología positiva"),
+]
+
+
+@router.get("/persona/{usuario_id}/reporte", response_model=ReportePersonaResponse)
+def reporte_persona(
+    usuario_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Datos de una persona para armar un reporte de remisión: datos básicos,
+    resultado global y nivel de las 6 dimensiones, con la comparación entre la
+    línea base y la última medición cuando la persona ya hizo un seguimiento.
+
+    El detalle pregunta por pregunta de una dimensión lo tiene la vista de ese
+    perfil; esto es el panorama para acompañarlo.
+    """
+    if current_user.role not in _ROLES_REPORTE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para ver el reporte de una persona",
+        )
+
+    persona = db.query(User).filter(User.id == usuario_id).first()
+    if persona is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona no encontrada")
+
+    encuestas = repo.obtener_por_usuario(db, usuario_id)  # más reciente primero
+    if not encuestas:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La persona no ha respondido la encuesta",
+        )
+
+    actual = encuestas[0]
+    base = encuestas[-1] if len(encuestas) >= 2 else None
+
+    nombres_ciclo = {c.id: c.nombre for c in ciclos.listar(db)}
+
+    def _medicion(enc):
+        return ReporteMedicion(
+            nombre=nombres_ciclo.get(enc.ciclo_id, "Encuesta"),
+            fecha=enc.fecha_respuesta,
+        )
+
+    dimensiones = [
+        ReporteDimension(
+            clave=clave,
+            label=label,
+            indice_actual=getattr(actual, f"{pref}_indice") or 0.0,
+            nivel_actual=getattr(actual, f"{pref}_nivel") or "—",
+            indice_base=(getattr(base, f"{pref}_indice") if base else None),
+            nivel_base=(getattr(base, f"{pref}_nivel") if base else None),
+        )
+        for clave, pref, label in _DIM_REPORTE
+    ]
+
+    return ReportePersonaResponse(
+        datos=ReporteDatosBasicos(
+            nombre=persona.full_name,
+            sexo=persona.sexo,
+            facultad=persona.facultad,
+            programa=persona.program,
+            tipo_usuario=persona.tipo_usuario,
+            universidad=persona.university,
+        ),
+        medicion_actual=_medicion(actual),
+        medicion_base=(_medicion(base) if base else None),
+        global_actual_indice=actual.indice_global or 0.0,
+        global_actual_nivel=actual.nivel_global or "—",
+        global_base_indice=(base.indice_global if base else None),
+        global_base_nivel=(base.nivel_global if base else None),
+        dimensiones=dimensiones,
     )

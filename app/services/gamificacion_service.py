@@ -6,6 +6,7 @@ import random
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 try:
@@ -24,7 +25,7 @@ from app.data.tareas_catalogo import (
     TareaDef,
 )
 from app.models.gamificacion import MisionDiaria, XpEvento
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.repositories import encuesta_hplp_repository as encuesta_repo
 from app.repositories.gamificacion_repository import GamificacionRepository
 from app.repositories.user_repository import UserRepository
@@ -123,7 +124,7 @@ def _elegir_tarea(
 
 def _generar_misiones(user_id: uuid.UUID, db: Session, fecha: date) -> list[MisionDiaria]:
     repo = GamificacionRepository(db)
-    recientes = repo.tareas_recientes(user_id, dias=2)
+    recientes = repo.tareas_recientes(user_id, fecha, dias=2)
     rng = random.Random(f"{user_id}-{fecha.isoformat()}")
 
     orden = _dimensiones_ordenadas(db, user_id)
@@ -170,6 +171,11 @@ def _mision_a_response(mision: MisionDiaria) -> MisionResponse:
     )
 
 
+def es_usuario(user: User) -> bool:
+    """La gamificación es solo para el rol usuario (student)."""
+    return user.role == UserRole.STUDENT.value
+
+
 class GamificacionService:
 
     def __init__(self, db: Session):
@@ -178,10 +184,19 @@ class GamificacionService:
         self.users = UserRepository(db)
 
     def obtener_misiones_hoy(self, user: User) -> MisionesHoyResponse:
+        if not es_usuario(user):
+            return MisionesHoyResponse(
+                fecha=hoy_bogota(),
+                misiones=[],
+                completadas_hoy=0,
+                total_hoy=0,
+                bonus_disponible=0,
+                progreso=progreso_de_usuario(user),
+            )
         fecha = hoy_bogota()
         misiones = self.repo.obtener_misiones_dia(user.id, fecha)
         if not misiones:
-            misiones = self.repo.crear_misiones(_generar_misiones(user.id, self.db, fecha))
+            misiones = self._crear_misiones_del_dia(user.id, fecha)
 
         completadas = sum(1 for m in misiones if m.completada_at)
         return MisionesHoyResponse(
@@ -193,6 +208,19 @@ class GamificacionService:
             progreso=progreso_de_usuario(user),
         )
 
+    def _crear_misiones_del_dia(self, user_id: uuid.UUID, fecha: date) -> list[MisionDiaria]:
+        try:
+            return self.repo.crear_misiones(_generar_misiones(user_id, self.db, fecha))
+        except IntegrityError:
+            # El dashboard y la burbuja del asistente piden a la vez en el
+            # primer acceso del día: las dos ven la tabla vacía y las dos
+            # insertan. Se recuperan las que quedaron en vez de fallar.
+            self.db.rollback()
+            creadas = self.repo.obtener_misiones_dia(user_id, fecha)
+            if not creadas:
+                raise
+            return creadas
+
     def _otorgar_xp(
         self,
         user: User,
@@ -200,6 +228,8 @@ class GamificacionService:
         motivo: str,
         referencia_id: str | None = None,
     ) -> None:
+        if not es_usuario(user):
+            return
         if xp <= 0:
             return
         user.total_xp += xp
@@ -238,6 +268,8 @@ class GamificacionService:
         return bonus
 
     def completar_mision(self, user: User, mision_id: uuid.UUID) -> CompletarMisionResponse:
+        if not es_usuario(user):
+            raise ValueError("La gamificación es solo para usuarios")
         mision = self.repo.obtener_mision(mision_id, user.id)
         if not mision:
             raise ValueError("Misión no encontrada")
@@ -278,6 +310,17 @@ class GamificacionService:
             progreso=progreso_de_usuario(user),
         )
 
+    def otorgar_xp_externo(
+        self,
+        user: User,
+        xp: int,
+        motivo: str,
+        referencia_id: str | None = None,
+    ) -> None:
+        """Punto de entrada público para que otros servicios (fuera del flujo
+        de misiones/racha) otorguen XP reutilizando el mismo mecanismo."""
+        self._otorgar_xp(user, xp, motivo, referencia_id)
+
     def otorgar_bonus_encuesta(self, user: User, encuesta_id: int) -> bool:
         ref = str(encuesta_id)
         if self.repo.ya_otorgo_motivo(user.id, "encuesta", ref):
@@ -285,9 +328,59 @@ class GamificacionService:
         self._otorgar_xp(user, BONUS_ENCUESTA_XP, "encuesta", ref)
         return True
 
+    def _detalle_evento(self, ev: XpEvento) -> str | None:
+        """Nombre legible de la actividad/evento que dio los puntos."""
+        m, ref = ev.motivo, ev.referencia_id
+        if m == "bonus_dia":
+            return "Completaste todas las misiones del día"
+        if m in ("racha_3", "racha_7"):
+            return "Bonus por mantener la racha"
+        if m == "encuesta":
+            return "Cuestionario PEPS II"
+        if not ref:
+            return None
+        if m == "tarea_completada":
+            try:
+                mision = self.db.get(MisionDiaria, uuid.UUID(ref))
+            except (ValueError, TypeError):
+                return None
+            tarea = TAREAS_POR_ID.get(mision.tarea_id) if mision else None
+            return tarea.titulo if tarea else None
+        if m == "insignia":
+            from app.data.insignias_catalogo import INSIGNIAS_POR_ID
+            ins = INSIGNIAS_POR_ID.get(ref)
+            return ins.nombre if ins else None
+        if m in ("recomendacion_dia", "recomendacion_completada"):
+            from app.models.seguimiento_recomendacion import (
+                RegistroDiarioSeguimiento,
+                SeguimientoRecomendacion,
+            )
+            from app.services.seguimiento_recomendacion_service import DIMENSION_A_FICHAS
+            try:
+                rid = uuid.UUID(ref)
+            except (ValueError, TypeError):
+                return None
+            if m == "recomendacion_dia":
+                registro = self.db.get(RegistroDiarioSeguimiento, rid)
+                seg = self.db.get(SeguimientoRecomendacion, registro.seguimiento_id) if registro else None
+            else:
+                seg = self.db.get(SeguimientoRecomendacion, rid)
+            if seg is None:
+                return None
+            label = DIMENSION_LABELS.get(seg.dimension, seg.dimension)
+            ficha = DIMENSION_A_FICHAS.get(seg.dimension, {}).get(seg.pregunta_num, {}).get(seg.nivel, {})
+            tecnica = ficha.get("tecnica")
+            return f"{label}: {tecnica}" if tecnica else label
+        return None
+
     def historial(self, user: User, limite: int = 20) -> list[XpEventoResponse]:
         eventos = self.repo.historial(user.id, limite)
-        return [XpEventoResponse.model_validate(e) for e in eventos]
+        return [
+            XpEventoResponse.model_validate(e).model_copy(
+                update={"detalle": self._detalle_evento(e)}
+            )
+            for e in eventos
+        ]
 
     def progreso(self, user: User) -> ProgresoGamificacion:
         return progreso_de_usuario(user)
