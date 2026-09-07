@@ -148,7 +148,7 @@ def mis_notificaciones(
     def nombre_de(remitente_id: uuid.UUID) -> str:
         if remitente_id not in nombres_por_remitente:
             remitente = user_repo.get_by_id(remitente_id)
-            nombres_por_remitente[remitente_id] = remitente.full_name if remitente else "Equipo Vitalis"
+            nombres_por_remitente[remitente_id] = remitente.full_name if remitente else "Equipo UnacHealth"
         return nombres_por_remitente[remitente_id]
 
     return [
@@ -197,7 +197,7 @@ def marcar_como_leida(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notificación no encontrada")
 
     remitente = UserRepository(db).get_by_id(notificacion.remitente_id)
-    nombre = remitente.full_name if remitente else "Equipo Vitalis"
+    nombre = remitente.full_name if remitente else "Equipo UnacHealth"
     return NotificacionResponse(
         id=notificacion.id,
         remitente_nombre=ETIQUETA_REMITENTE_ROL.get(notificacion.remitente_rol, nombre),
@@ -252,7 +252,7 @@ def responder_invitacion(
 
     return NotificacionResponse(
         id=notificacion.id,
-        remitente_nombre=ETIQUETA_REMITENTE_ROL.get(notificacion.remitente_rol, "Equipo Vitalis"),
+        remitente_nombre=ETIQUETA_REMITENTE_ROL.get(notificacion.remitente_rol, "Equipo UnacHealth"),
         mensaje=notificacion.mensaje,
         enlace=notificacion.enlace,
         tipo=notificacion.tipo,
@@ -421,7 +421,7 @@ def historial_enviadas(
     def nombre_de(remitente_id: uuid.UUID) -> str:
         if remitente_id not in nombres:
             u = user_repo.get_by_id(remitente_id)
-            nombres[remitente_id] = u.full_name if u else "Equipo Vitalis"
+            nombres[remitente_id] = u.full_name if u else "Equipo UnacHealth"
         return nombres[remitente_id]
 
     return [
