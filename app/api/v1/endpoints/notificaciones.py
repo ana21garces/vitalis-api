@@ -92,7 +92,7 @@ def mis_notificaciones(
     def nombre_de(remitente_id: uuid.UUID) -> str:
         if remitente_id not in nombres_por_remitente:
             remitente = user_repo.get_by_id(remitente_id)
-            nombres_por_remitente[remitente_id] = remitente.full_name if remitente else "Equipo Vitalis"
+            nombres_por_remitente[remitente_id] = remitente.full_name if remitente else "Equipo UnacHealth"
         return nombres_por_remitente[remitente_id]
 
     return [
@@ -121,7 +121,7 @@ def marcar_como_leida(
     remitente = UserRepository(db).get_by_id(notificacion.remitente_id)
     return NotificacionResponse(
         id=notificacion.id,
-        remitente_nombre=remitente.full_name if remitente else "Equipo Vitalis",
+        remitente_nombre=remitente.full_name if remitente else "Equipo UnacHealth",
         mensaje=notificacion.mensaje,
         leida=notificacion.leida,
         created_at=notificacion.created_at,
@@ -286,7 +286,7 @@ def historial_enviadas(
     def nombre_de(remitente_id: uuid.UUID) -> str:
         if remitente_id not in nombres:
             u = user_repo.get_by_id(remitente_id)
-            nombres[remitente_id] = u.full_name if u else "Equipo Vitalis"
+            nombres[remitente_id] = u.full_name if u else "Equipo UnacHealth"
         return nombres[remitente_id]
 
     return [
