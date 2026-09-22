@@ -77,7 +77,7 @@ DIM_ETIQUETA_POR_CLAVE = {
 
 NIVELES = ["Pobre", "Moderado", "Bueno", "Excelente"]
 
-TIPOS_VALIDOS = {"usuarios", "participacion", "progresion", "distribucion", "cumplimiento", "misiones"}
+TIPOS_VALIDOS = {"usuarios", "participacion", "progresion", "distribucion", "cumplimiento", "misiones", "usabilidad", "usabilidad_detalle"}
 FORMATOS_VALIDOS = {"excel", "pdf", "csv"}
 
 
@@ -91,6 +91,18 @@ class Tabla:
     # tabla es demasiado ancha para imprimirse. None = todas.
     columnas_pdf: list[int] | None = None
     nota_pdf: str | None = None
+
+
+@dataclass
+class CeldaFormula:
+    """Celda que en Excel se escribe como fórmula (recalculable) y en CSV/PDF
+    como su valor ya calculado. `formula` usa `{fila}` para el número de fila."""
+    valor: str
+    formula: str
+
+
+def _texto_celda(v) -> str:
+    return v.valor if isinstance(v, CeldaFormula) else str(v)
 
 
 # ── Helpers de consulta ───────────────────────────────────────────────────────
@@ -555,7 +567,8 @@ def render_csv(tabla: Tabla) -> bytes:
     salida = StringIO()
     escritor = csv.writer(salida, delimiter=";", lineterminator="\r\n")
     escritor.writerow(tabla.columnas)
-    escritor.writerows(tabla.filas)
+    for fila in tabla.filas:
+        escritor.writerow([_texto_celda(v) for v in fila])
     return salida.getvalue().encode("utf-8-sig")
 
 
@@ -584,14 +597,17 @@ def render_excel(tabla: Tabla) -> bytes:
 
     for i, fila in enumerate(tabla.filas, start=encabezado_fila + 1):
         for j, valor in enumerate(fila, start=1):
-            ws.cell(row=i, column=j, value=valor)
+            if isinstance(valor, CeldaFormula):
+                ws.cell(row=i, column=j, value=valor.formula.format(fila=i))
+            else:
+                ws.cell(row=i, column=j, value=valor)
 
     # Ancho aproximado por el contenido más largo de cada columna.
     for j in range(1, ncols + 1):
         largo = len(str(tabla.columnas[j - 1]))
         for fila in tabla.filas:
             if j - 1 < len(fila):
-                largo = max(largo, len(str(fila[j - 1])))
+                largo = max(largo, len(_texto_celda(fila[j - 1])))
         ws.column_dimensions[get_column_letter(j)].width = min(45, max(10, largo + 2))
 
     ws.freeze_panes = ws.cell(row=encabezado_fila + 1, column=1)
@@ -621,6 +637,7 @@ def render_pdf(tabla: Tabla) -> bytes:
         filas = [[f[i] for i in idx] for f in tabla.filas]
     else:
         columnas, filas = tabla.columnas, tabla.filas
+    filas = [[_texto_celda(v) for v in fila] for fila in filas]
 
     estilos = getSampleStyleSheet()
     estilo_titulo = ParagraphStyle("t", parent=estilos["Title"], fontSize=16,
@@ -675,6 +692,138 @@ def render_pdf(tabla: Tabla) -> bytes:
 
 # ── Orquestación ──────────────────────────────────────────────────────────────
 
+def construir_usabilidad(db: Session, rol: str = "todos") -> Tabla:
+    from app.data.csuq import CSUQ_ITEMS, SUBESCALAS
+    from app.models.encuesta_usabilidad import EncuestaUsabilidad
+
+    consulta = db.query(EncuestaUsabilidad)
+    if rol == "usuarios":
+        consulta = consulta.filter(EncuestaUsabilidad.rol == UserRole.STUDENT.value)
+    elif rol == "profesionales":
+        consulta = consulta.filter(
+            EncuestaUsabilidad.rol.notin_([UserRole.STUDENT.value, UserRole.ADMIN.value])
+        )
+    respuestas = consulta.all()
+    n = len(respuestas)
+
+    sub_de_item: dict[int, str] = {}
+    for _, (etiqueta, ini, fin) in SUBESCALAS.items():
+        for i in range(ini, fin + 1):
+            sub_de_item[i] = etiqueta
+
+    def promedio(valores) -> str:
+        return str(round(sum(valores) / n, 2)) if n else "—"
+
+    filas = []
+
+    # Primero el promedio de cada ítem...
+    for idx, enunciado in enumerate(CSUQ_ITEMS, start=1):
+        filas.append([
+            str(idx),
+            enunciado,
+            sub_de_item.get(idx, "Satisfacción general"),
+            promedio([getattr(f, f"item_{idx:02d}") for f in respuestas]),
+        ])
+
+    # ...y al final el bloque de resumen: total, desglose y promedios.
+    filas.append(["", "Total de respuestas", "Resumen", str(n)])
+    if rol == "todos":
+        estudiantes = sum(1 for f in respuestas if f.rol == UserRole.STUDENT.value)
+        profesionales = sum(
+            1 for f in respuestas if f.rol not in (UserRole.STUDENT.value, UserRole.ADMIN.value)
+        )
+        filas.append(["", "De estudiantes", "Resumen", str(estudiantes)])
+        filas.append(["", "De profesionales", "Resumen", str(profesionales)])
+
+    resumen = [
+        ("Utilidad del sistema (ítems 1–6)", "sysuse"),
+        ("Calidad de la información (ítems 7–12)", "infoqual"),
+        ("Calidad de la interfaz (ítems 13–15)", "interqual"),
+        ("Puntaje global (ítems 1–16)", "puntaje_global"),
+    ]
+    for etiqueta, campo in resumen:
+        filas.append(["", etiqueta, "Resumen", promedio([getattr(f, campo) for f in respuestas])])
+
+    etiqueta_rol = {"usuarios": "estudiantes", "profesionales": "profesionales"}.get(rol, "todos")
+    return Tabla(
+        titulo="Encuesta de usabilidad (CSUQ)",
+        subtitulo=(
+            f"{n} respuesta(s) · {etiqueta_rol} · escala 1–7, mayor es mejor · "
+            f"generado el {_fecha(datetime.now())}"
+        ),
+        columnas=["Ítem", "Enunciado", "Subescala", "Promedio (1-7)"],
+        filas=filas,
+        columnas_pdf=[0, 1, 3],
+        nota_pdf=(
+            "Escala 1 (totalmente en desacuerdo) a 7 (totalmente de acuerdo); mayor promedio = "
+            "mejor usabilidad. El bloque 'Resumen' trae el total de respuestas y los promedios de "
+            "las subescalas y el global; debajo va el promedio de cada ítem."
+        ),
+    )
+
+
+def construir_usabilidad_detalle(db: Session, rol: str = "todos") -> Tabla:
+    from app.models.encuesta_usabilidad import EncuestaUsabilidad
+
+    rol_label = {
+        UserRole.STUDENT.value: "Estudiante",
+        UserRole.CAPELLAN.value: "Psicología positiva",
+        UserRole.ACTIVIDAD_FISICA.value: "Actividad física",
+        UserRole.RESPONSABILIDAD_SALUD.value: "Responsabilidad en salud",
+        UserRole.RELACIONES_INTERPERSONALES.value: "Relaciones interpersonales",
+        UserRole.MANEJO_ESTRES.value: "Manejo del estrés",
+        UserRole.NUTRICION.value: "Nutrición",
+        UserRole.ADMIN.value: "Administrador",
+    }
+
+    consulta = db.query(EncuestaUsabilidad)
+    if rol == "usuarios":
+        consulta = consulta.filter(EncuestaUsabilidad.rol == UserRole.STUDENT.value)
+    elif rol == "profesionales":
+        consulta = consulta.filter(
+            EncuestaUsabilidad.rol.notin_([UserRole.STUDENT.value, UserRole.ADMIN.value])
+        )
+    respuestas = consulta.order_by(EncuestaUsabilidad.fecha_respuesta).all()
+
+    columnas = (
+        ["Fecha", "Rol"]
+        + [str(i) for i in range(1, 17)]
+        + ["Utilidad", "Información", "Interfaz", "Global"]
+    )
+    # Puntajes = promedio de sus ítems (columnas C–R son los ítems 1–16). En
+    # Excel salen como fórmula =PROMEDIO recalculable; en CSV/PDF, como número.
+    filas = []
+    for f in respuestas:
+        fila = [_fecha(f.fecha_respuesta), rol_label.get(f.rol, f.rol)]
+        # Números (no texto) para que la fórmula =PROMEDIO de Excel funcione.
+        fila += [getattr(f, f"item_{i:02d}") for i in range(1, 17)]
+        fila += [
+            CeldaFormula(str(f.sysuse), "=AVERAGE(C{fila}:H{fila})"),
+            CeldaFormula(str(f.infoqual), "=AVERAGE(I{fila}:N{fila})"),
+            CeldaFormula(str(f.interqual), "=AVERAGE(O{fila}:Q{fila})"),
+            CeldaFormula(str(f.puntaje_global), "=AVERAGE(C{fila}:R{fila})"),
+        ]
+        filas.append(fila)
+
+    etiqueta_rol = {"usuarios": "estudiantes", "profesionales": "profesionales"}.get(rol, "todos")
+    return Tabla(
+        titulo="Encuesta de usabilidad — respuestas",
+        subtitulo=(
+            f"{len(respuestas)} respuesta(s) · {etiqueta_rol} · una fila por persona "
+            f"(respuestas 1–7) · generado el {_fecha(datetime.now())}"
+        ),
+        columnas=columnas,
+        filas=filas,
+        columnas_pdf=[0, 1, 18, 19, 20, 21],
+        nota_pdf=(
+            "Cada puntaje es el promedio de sus ítems: Utilidad = ítems 1–6, "
+            "Información = 7–12, Interfaz = 13–15, Global = 1–16. En el Excel esas cuatro "
+            "columnas son fórmulas =PROMEDIO recalculables; el detalle de los 16 ítems "
+            "está en las versiones Excel y CSV."
+        ),
+    )
+
+
 def generar(db: Session, tipo: str, *, rol: str, segmento: str,
             dimension: str, nivel: str | None,
             desde: date | None = None, hasta: date | None = None) -> Tabla:
@@ -690,6 +839,10 @@ def generar(db: Session, tipo: str, *, rol: str, segmento: str,
         return construir_cumplimiento(db, dimension, desde, hasta)
     if tipo == "misiones":
         return construir_misiones(db, dimension, desde, hasta)
+    if tipo == "usabilidad":
+        return construir_usabilidad(db, rol)
+    if tipo == "usabilidad_detalle":
+        return construir_usabilidad_detalle(db, rol)
     raise ValueError(f"Tipo de reporte desconocido: {tipo}")
 
 
