@@ -14,6 +14,8 @@ from app.models.gamificacion import MisionDiaria, XpEvento  # noqa: F401
 from app.models.seguimiento_recomendacion import RegistroDiarioSeguimiento, SeguimientoRecomendacion  # noqa: F401
 from app.models.insignia import InsigniaUsuario  # noqa: F401
 from app.models.asistente import AsistenteSaludo  # noqa: F401
+from app.models.encuesta_usabilidad import EncuestaUsabilidad  # noqa: F401
+from app.models.usabilidad_campana import UsabilidadCampana  # noqa: F401
 
 
 def init_db() -> None:
@@ -165,3 +167,18 @@ def init_db() -> None:
         print("[OK] Indice unico (usuario_id, ciclo_id) verificado", flush=True)
     except Exception as exc:
         print(f"[AVISO] No se pudo crear el indice unico de mediciones: {exc}", flush=True)
+
+    # Usabilidad: la unicidad pasa de (usuario) a (usuario, rol) para que el admin
+    # pueda responder una vez por cada área de bienestar que administra.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE encuestas_usabilidad DROP CONSTRAINT IF EXISTS uq_usabilidad_usuario"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_usabilidad_usuario_rol "
+                "ON encuestas_usabilidad (usuario_id, rol)"
+            ))
+        print("[OK] Indice unico (usuario_id, rol) de usabilidad verificado", flush=True)
+    except Exception as exc:
+        print(f"[AVISO] No se pudo ajustar el indice unico de usabilidad: {exc}", flush=True)
